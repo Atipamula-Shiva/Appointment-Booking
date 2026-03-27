@@ -1,3 +1,10 @@
-backend/.env
-backend/.env
-backend/.env.example
+# Env files
+.env
+.env.*
+
+# Python
+__pycache__/
+*.pyc
+
+# Virtual environment
+venv/
