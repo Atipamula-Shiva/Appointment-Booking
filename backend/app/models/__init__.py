@@ -197,6 +197,7 @@ class User(Base):
 
     id           = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     phone_number = Column(String(20), unique=True, nullable=False, index=True)
+    username     = Column(String(100), nullable=True)
     name         = Column(String(100), nullable=True)
     role         = Column(Enum(UserRole, name="user_role_enum"), nullable=False)
     is_verified  = Column(Boolean, default=False)

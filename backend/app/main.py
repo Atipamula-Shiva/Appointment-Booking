@@ -1,9 +1,12 @@
+import profile
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import Base, engine
 from app.models import *  # noqa: F401, F403 – ensure models are registered
 from app.routers import auth, shop, orders, auth_password
+from app.routers import profile as profile_router
 
 # Create all tables on startup (use Alembic in production)
 Base.metadata.create_all(bind=engine)
@@ -36,6 +39,7 @@ app.include_router(auth_password.router)
 app.include_router(auth.router)
 app.include_router(shop.router)
 app.include_router(orders.router)
+app.include_router(profile_router.router)
 
 
 @app.get("/", tags=["Health"])
