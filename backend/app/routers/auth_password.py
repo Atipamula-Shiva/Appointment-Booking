@@ -19,6 +19,7 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
         phone_number=payload.username,
         password_hash=hash_password(payload.password),
         role=UserRole(payload.role),
+        username=payload.username,
         name=payload.name,
         is_verified=True
     )
