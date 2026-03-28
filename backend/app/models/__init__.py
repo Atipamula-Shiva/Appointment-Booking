@@ -198,7 +198,7 @@ class User(Base):
     id           = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     phone_number = Column(String(20), unique=True, nullable=False, index=True)
     username     = Column(String(100), nullable=True)
-    name         = Column(String(100), nullable=True)
+    email = Column(String, unique=True, nullable=True)
     role         = Column(Enum(UserRole, name="user_role_enum"), nullable=False)
     is_verified  = Column(Boolean, default=False)
     is_active    = Column(Boolean, default=True)
@@ -228,6 +228,16 @@ class OTP(Base):
 
     user = relationship("User", back_populates="otp")
 
+class OTPStore(Base):
+    __tablename__ = "otp_store"
+    __table_args__ = {"schema": "abc"}
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, index=True, nullable=False)
+    otp = Column(String, nullable=False)
+    purpose = Column(String, nullable=False)  # "register" | "reset_password" | "forgot_username"
+    expires_at = Column(DateTime, nullable=False)
+    is_used = Column(Boolean, default=False)
 
 # ─────────────────────────────────────────────
 # Shop
