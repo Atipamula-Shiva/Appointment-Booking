@@ -3,17 +3,20 @@ import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/authContext";
 import useSnackbar from "../common/Snackbar";
 
-const LoginPage = () => {
+const RegisterPage = () => {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { register } = useAuth();
   const { showSnackbar } = useSnackbar();
-
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [role, setRole] = useState("customer");
+  
+  const [formData, setFormData] = useState({
+    username: "",
+    password: "",
+    confirmPassword: "",
+    name: "",
+    role: "customer"
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
   useEffect(() => {
@@ -26,17 +29,42 @@ const LoginPage = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Validation
+    if (formData.password !== formData.confirmPassword) {
+      setError("Passwords don't match");
+      showSnackbar("Passwords don't match", "error", 3000);
+      return;
+    }
+    
+    if (formData.password.length < 6) {
+      setError("Password must be at least 6 characters");
+      showSnackbar("Password must be at least 6 characters", "error", 3000);
+      return;
+    }
+    
     setLoading(true);
     setError("");
-
-    const result = await login(username, password, role);
-
+    
+    // Send exactly what API expects
+    const result = await register({
+      username: formData.username,     // ✅ username
+      password: formData.password,     // ✅ password
+      name: formData.name,             // ✅ name
+      role: formData.role              // ✅ role (will be converted to CUSTOMER or SHOP_OWNER in authService)
+    });
+    
     if (result.success) {
-      showSnackbar(`Welcome back, ${result.user.name}!`, "success", 3000);
-      navigate("/");
+      showSnackbar(`Welcome ${formData.name}! Account created successfully`, "success", 3000);
+      // Redirect based on role
+      if (formData.role === "owner") {
+        navigate("/owner/dashboard");
+      } else {
+        navigate("/");
+      }
     } else {
-      setError(result.error || "Login failed. Please check your credentials.");
-      showSnackbar(result.error || "Login failed", "error", 4000);
+      setError(result.error);
+      showSnackbar(result.error || "Registration failed", "error", 4000);
     }
     setLoading(false);
   };
@@ -76,7 +104,7 @@ const LoginPage = () => {
                 opacity: 0.9,
               }}
             >
-              No waiting, just booking
+              Join the waiting-free experience
             </p>
 
             <div style={{ marginTop: "40px", lineHeight: "1.6" }}>
@@ -135,7 +163,7 @@ const LoginPage = () => {
               marginBottom: "6px",
             }}
           >
-            Welcome Back
+            Create Account
           </h1>
 
           <p
@@ -146,7 +174,7 @@ const LoginPage = () => {
               marginBottom: "20px",
             }}
           >
-            Sign in to continue
+            Join SPOTLO today
           </p>
 
           {/* Role Tabs */}
@@ -162,7 +190,7 @@ const LoginPage = () => {
             {["customer", "owner"].map((r) => (
               <button
                 key={r}
-                onClick={() => setRole(r)}
+                onClick={() => setFormData({...formData, role: r})}
                 style={{
                   flex: 1,
                   padding: "10px",
@@ -171,8 +199,8 @@ const LoginPage = () => {
                   cursor: "pointer",
                   fontSize: "13px",
                   fontWeight: "600",
-                  background: role === r ? "white" : "transparent",
-                  color: role === r ? "#667eea" : "#475569",
+                  background: formData.role === r ? "white" : "transparent",
+                  color: formData.role === r ? "#667eea" : "#475569",
                   transition: "all 0.2s ease",
                 }}
               >
@@ -202,9 +230,18 @@ const LoginPage = () => {
 
             <input
               type="text"
+              placeholder="Full Name"
+              value={formData.name}
+              onChange={(e) => setFormData({...formData, name: e.target.value})}
+              style={inputStyle}
+              required
+            />
+
+            <input
+              type="text"
               placeholder="Username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              value={formData.username}
+              onChange={(e) => setFormData({...formData, username: e.target.value})}
               style={inputStyle}
               required
             />
@@ -212,8 +249,17 @@ const LoginPage = () => {
             <input
               type="password"
               placeholder="Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              value={formData.password}
+              onChange={(e) => setFormData({...formData, password: e.target.value})}
+              style={inputStyle}
+              required
+            />
+
+            <input
+              type="password"
+              placeholder="Confirm Password"
+              value={formData.confirmPassword}
+              onChange={(e) => setFormData({...formData, confirmPassword: e.target.value})}
               style={inputStyle}
               required
             />
@@ -235,33 +281,33 @@ const LoginPage = () => {
               onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.9")}
               onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
             >
-              {loading ? "Signing in..." : "Sign In"}
+              {loading ? "Creating account..." : "Create Account"}
             </button>
           </form>
 
           <p
-  style={{
-    textAlign: "center",
-    marginTop: "16px",
-    fontSize: "13px",
-    color: "#64748b",
-  }}
->
-  New to SPOTLO?{" "}
-  <Link
-    to="/register"  
-    style={{
-      color: "#667eea",
-      textDecoration: "none",
-      fontWeight: "600",
-      transition: "opacity 0.2s ease",
-    }}
-    onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.8")}
-    onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
-  >
-    Create account
-  </Link>
-</p>
+            style={{
+              textAlign: "center",
+              marginTop: "16px",
+              fontSize: "13px",
+              color: "#64748b",
+            }}
+          >
+            Already have an account?{" "}
+            <Link
+              to="/login"
+              style={{
+                color: "#667eea",
+                textDecoration: "none",
+                fontWeight: "600",
+                transition: "opacity 0.2s ease",
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.8")}
+              onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
+            >
+              Sign in
+            </Link>
+          </p>
         </div>
       </div>
     </div>
@@ -277,4 +323,4 @@ const inputStyle = {
   transition: "border-color 0.2s ease",
 };
 
-export default LoginPage;
+export default RegisterPage;
