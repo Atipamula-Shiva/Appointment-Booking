@@ -5,10 +5,10 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.dependencies import require_customer, require_shop_owner, get_current_user
-from app.models import Booking, BookingStatus, Category, MenuItem, Order, OrderItem, OrderStatus, Shop, TimeSlot, User
+from app.models import Booking, BookingStatus, Category, MenuItem, Order, OrderItem, OrderStatus, Service, Shop, TimeSlot, User
 from app.schemas.order import OrderCreate, OrderResponse, OrderStatusUpdate, OrderItemCreate, OrderItemResponse, OrderItemUpdate, OrderItemDelete, CategoryResponse, CategoryCreate, CategoryUpdate
 from app.schemas.booking import BookingCreate, BookingResponse, SlotResponse
-
+from app.utils.utils import haversine_distance
 router = APIRouter(tags=["Orders"])
 
 
@@ -348,3 +348,96 @@ def update_order_status(
     db.commit()
     db.refresh(order)
     return order
+
+# ── Search & Filter ───────────────────────────────────────
+
+@router.get("/search", summary="Search shops, services, categories")
+def search(
+    q: str = Query(None, description="Search by name"),
+    category_id: UUID = Query(None, description="Filter by category"),
+    min_price: float = Query(None, description="Minimum price"),
+    max_price: float = Query(None, description="Maximum price"),
+    lat: float = Query(None, description="Customer latitude"),
+    lng: float = Query(None, description="Customer longitude"),
+    radius_km: float = Query(10.0, description="Search radius in km"),
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user)
+):
+    # ── Step 1: Find matching services ───────────────────
+    service_query = db.query(Service).join(Shop).filter(
+        Shop.is_open == True,
+        Service.is_available == True
+    )
+
+    if q:
+        service_query = service_query.filter(
+            Service.name.ilike(f"%{q}%") |
+            Shop.name.ilike(f"%{q}%") |
+            Service.description.ilike(f"%{q}%")
+        )
+    if category_id:
+        service_query = service_query.filter(Service.category_id == category_id)
+    if min_price is not None:
+        service_query = service_query.filter(Service.price >= min_price)
+    if max_price is not None:
+        service_query = service_query.filter(Service.price <= max_price)
+
+    services = service_query.all()
+
+    # ── Step 2: Group services by shop ───────────────────
+    shop_map = {}
+    for service in services:
+        shop = service.shop
+        shop_id = str(shop.id)
+
+        if shop_id not in shop_map:
+            # Calculate distance if lat/lng provided
+            distance = None
+            if lat and lng and shop.latitude and shop.longitude:
+                distance = round(haversine_distance(lat, lng, shop.latitude, shop.longitude), 2)
+                if radius_km and distance > radius_km:
+                    continue  # skip shops outside radius
+
+            shop_map[shop_id] = {
+                "shop_id": shop_id,
+                "shop_name": shop.name,
+                "shop_description": shop.description,
+                "shop_address": shop.address,
+                "shop_phone": shop.phone,
+                "shop_image_url": shop.image_url,
+                "shop_latitude": shop.latitude,
+                "shop_longitude": shop.longitude,
+                "distance_km": distance,
+                "services": []
+            }
+
+        shop_map[shop_id]["services"].append({
+            "service_id": str(service.id),
+            "service_name": service.name,
+            "description": service.description,
+            "price": service.price,
+            "duration_minutes": service.duration_minutes,
+            "image_url": service.image_url,
+            "category_id": str(service.category_id)
+        })
+
+    # ── Step 3: Sort shops by distance ───────────────────
+    result = list(shop_map.values())
+
+    if lat and lng:
+        result.sort(key=lambda x: x["distance_km"] if x["distance_km"] is not None else 9999)
+
+    # ── Step 4: Categories (for filter chips on frontend) ─
+    cat_query = db.query(Category)
+    if q:
+        cat_query = cat_query.filter(Category.name.ilike(f"%{q}%"))
+    categories = [
+        {"id": str(c.id), "name": c.name, "icon_url": c.icon_url}
+        for c in cat_query.all()
+    ]
+
+    return {
+        "total_shops": len(result),
+        "shops": result,          # ← sorted by distance, each with their services
+        "categories": categories  # ← for filter chips
+    }
