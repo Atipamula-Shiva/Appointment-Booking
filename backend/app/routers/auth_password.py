@@ -341,6 +341,7 @@
 
 
 
+import json
 import random
 import string
 from datetime import datetime, timedelta
@@ -411,6 +412,7 @@ def verify_otp(db: Session, email: str, otp: str, purpose: str) -> bool:
 
 @router.post("/register")
 async def register(payload: RegisterRequest, db: Session = Depends(get_db)):
+    # Check if already exists
     existing = db.query(User).filter(User.phone_number == payload.username).first()
     if existing:
         raise HTTPException(status_code=400, detail="User already exists")
@@ -419,21 +421,13 @@ async def register(payload: RegisterRequest, db: Session = Depends(get_db)):
     if email_taken:
         raise HTTPException(status_code=400, detail="Email already in use")
 
-    new_user = User(
-        phone_number=payload.username,
-        password_hash=hash_password(payload.password),
-        role=UserRole(payload.role),
-        username=payload.username,
-        email=payload.email,
-        is_verified=False
-    )
-
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
-
+    # ← Don't create user yet, store registration data in OTPStore temporarily
     otp = generate_otp()
     store_otp(db, payload.email, otp, purpose="register")
+
+    # Save registration payload as JSON in a pending store
+    store_pending_registration(db, payload.email, payload)
+
     await send_email(
         to=payload.email,
         subject="Verify your account",
@@ -445,26 +439,100 @@ async def register(payload: RegisterRequest, db: Session = Depends(get_db)):
 
 @router.post("/register/verify")
 async def verify_registration(payload: VerifyEmailOTPRequest, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == payload.email).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    if user.is_verified:
-        raise HTTPException(status_code=400, detail="Account already verified")
-
+    # Verify OTP first
     if not verify_otp(db, payload.email, payload.otp, purpose="register"):
         raise HTTPException(status_code=400, detail="Invalid or expired OTP")
 
-    user.is_verified = True
-    db.commit()
+    # Check if user already created (double verify attempt)
+    existing = db.query(User).filter(User.email == payload.email).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Account already verified")
 
-    token = create_access_token({"sub": str(user.id), "role": user.role.value})
-    refresh_token = create_refresh_token({"sub": str(user.id), "role": user.role.value})
+    # Get pending registration data
+    pending = get_pending_registration(db, payload.email)
+    if not pending:
+        raise HTTPException(status_code=400, detail="Registration data expired. Please register again.")
+
+    # ← Now create user only after OTP verified
+    new_user = User(
+        phone_number=pending["username"],
+        password_hash=hash_password(pending["password"]),
+        role=UserRole(pending["role"]),
+        username=pending["username"],
+        email=payload.email,
+        is_verified=True   # ← already verified
+    )
+
+    db.add(new_user)
+
+    # Clean up pending registration
+    delete_pending_registration(db, payload.email)
+
+    db.commit()
+    db.refresh(new_user)
+
+    token = create_access_token({"sub": str(new_user.id), "role": new_user.role.value})
+    refresh_token = create_refresh_token({"sub": str(new_user.id), "role": new_user.role.value})
 
     return {
-        "Account Created Successfully"
+        "access_token": token,
+        "refresh_token": refresh_token,
+        "role": new_user.role.value
     }
 
+def store_pending_registration(db: Session, email: str, payload: RegisterRequest):
+    """Store registration data temporarily until OTP verified."""
+    existing = db.query(OTPStore).filter(
+        OTPStore.email == email,
+        OTPStore.purpose == "pending_registration"
+    ).first()
+
+    data = json.dumps({
+        "username": payload.username,
+        "password": payload.password,
+        "role": payload.role,
+        "email": payload.email
+    })
+
+    expiry = datetime.utcnow() + timedelta(minutes=10)
+
+    if existing:
+        existing.otp = data
+        existing.expires_at = expiry
+        existing.is_used = False
+    else:
+        db.add(OTPStore(
+            email=email,
+            otp=data,
+            purpose="pending_registration",
+            expires_at=expiry
+        ))
+    db.commit()
+
+
+def get_pending_registration(db: Session, email: str):
+    """Get pending registration data."""
+    record = db.query(OTPStore).filter(
+        OTPStore.email == email,
+        OTPStore.purpose == "pending_registration",
+        OTPStore.is_used == False
+    ).first()
+
+    if not record:
+        return None
+    if record.expires_at < datetime.utcnow():
+        return None
+
+    return json.loads(record.otp)
+
+
+def delete_pending_registration(db: Session, email: str):
+    """Delete pending registration after user is created."""
+    db.query(OTPStore).filter(
+        OTPStore.email == email,
+        OTPStore.purpose == "pending_registration"
+    ).delete()
+    db.commit()
 
 # ── Login ─────────────────────────────────────────────────────────────────────
 
@@ -484,6 +552,9 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
     if not verify_password(payload.password, user.password_hash):
         raise HTTPException(status_code=400, detail="Invalid credentials")
 
+    if user.role.value.upper() != payload.role.upper():
+        raise HTTPException(status_code=403, detail=f"This account is registered as {user.role.value}. Please login with correct role.")
+    
     token = create_access_token({"sub": str(user.id), "role": user.role.value})
     refresh_token = create_refresh_token({"sub": str(user.id), "role": user.role.value})
 
