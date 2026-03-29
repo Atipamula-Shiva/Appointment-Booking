@@ -1,8 +1,5 @@
-// ============================================
-// FILE: src/components/ProtectedRoute.js
-// ============================================
 import { Navigate } from 'react-router-dom';
-import { useAuth } from '../context/authContext';
+import { useAuth } from '../context/AuthContext'; 
 
 const ProtectedRoute = ({ children, allowedRoles = ['customer', 'owner'] }) => {
   const { isAuthenticated, user, loading } = useAuth();
@@ -20,7 +17,10 @@ const ProtectedRoute = ({ children, allowedRoles = ['customer', 'owner'] }) => {
     return <Navigate to="/login" replace />;
   }
 
-  if (allowedRoles && !allowedRoles.includes(user?.role)) {
+  // Convert role to match backend format if needed
+  const userRole = user?.role === 'SHOP_OWNER' ? 'owner' : user?.role?.toLowerCase();
+  
+  if (allowedRoles && !allowedRoles.includes(userRole)) {
     return <Navigate to="/" replace />;
   }
 
@@ -45,5 +45,15 @@ const styles = {
     animation: 'spin 1s linear infinite',
   }
 };
+
+// Add this if you want the spin animation
+const styleSheet = document.createElement("style");
+styleSheet.textContent = `
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+`;
+document.head.appendChild(styleSheet);
 
 export default ProtectedRoute;

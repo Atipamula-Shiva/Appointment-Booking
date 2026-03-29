@@ -1,17 +1,23 @@
-import { useAuth } from "../context/authContext";
+import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
+import useSnackbar from "../common/Snackbar";
 
 const Navbar = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-
-  const [hoverLogout, setHoverLogout] = useState(false);
-  const [hoverLogo, setHoverLogo] = useState(false);
+  const { showSnackbar } = useSnackbar();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const handleLogout = () => {
+    const userName = user?.name || "User";
     logout();
+    showSnackbar(`${userName} logged out successfully`, "success", 3000);
     navigate("/login");
+  };
+
+  const getUserInitial = () => {
+    return user?.name?.charAt(0).toUpperCase() || "U";
   };
 
   return (
@@ -21,65 +27,67 @@ const Navbar = () => {
         boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
         position: "sticky",
         top: 0,
-        height: "60px",
         zIndex: 100,
-        display: "flex",
-        alignItems: "center",
-        position: "relative",
       }}
     >
-      {/* Center Tagline */}
       <div
         style={{
-          position: "absolute",
-          left: "50%",
-          transform: "translateX(-50%)",
-          fontSize: "14px",
-          fontStyle: "italic",
-          fontWeight: "500",
-          color: "#64748b",
-          letterSpacing: "0.5px",
-          pointerEvents: "none",
-        }}
-      >
-        No waiting, just booking
-      </div>
-
-      <div
-        style={{
-          width: "100%",
-          padding: "0 20px",
+          height: "64px",
+          padding: "0 24px",
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
+          maxWidth: "1400px",
+          margin: "0 auto",
+          position: "relative",
         }}
       >
-        {/* Logo Text */}
+        {/* Logo */}
         <div
           onClick={() => navigate("/")}
-          onMouseEnter={() => setHoverLogo(true)}
-          onMouseLeave={() => setHoverLogo(false)}
           style={{
             display: "flex",
             alignItems: "center",
             cursor: "pointer",
-            fontSize: "25px",
+            fontSize: "28px",
             fontWeight: "800",
             letterSpacing: "1px",
-            opacity: hoverLogo ? 0.8 : 1,
-            transition: "0.2s",
+            transition: "opacity 0.2s ease",
           }}
+          onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.8")}
+          onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
         >
           <span style={{ color: "#667eea" }}>SPOT</span>
           <span style={{ color: "#ffd166" }}>LO</span>
         </div>
 
-        {/* Right Section */}
+        {/* Desktop Tagline */}
+        <div
+          style={{
+            position: "absolute",
+            left: "50%",
+            transform: "translateX(-50%)",
+            fontSize: "14px",
+            fontStyle: "italic",
+            fontWeight: "500",
+            color: "#64748b",
+            letterSpacing: "0.5px",
+            display: "flex",
+            alignItems: "center",
+            gap: "6px",
+          }}
+        >
+          <span>✨</span>
+          <span>No waiting, just booking</span>
+          <span>✨</span>
+        </div>
+
+        {/* Desktop Right Section */}
         <div
           style={{
             display: "flex",
             alignItems: "center",
-            gap: "10px",
+            gap: "20px",
           }}
         >
           {user && (
@@ -89,31 +97,37 @@ const Navbar = () => {
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: "8px",
-                  padding: "4px 10px",
+                  gap: "12px",
+                  padding: "6px 16px 6px 12px",
                   background: "#f8fafc",
-                  borderRadius: "25px",
+                  borderRadius: "40px",
+                  border: "1px solid #e2e8f0",
                 }}
               >
+                {/* Avatar */}
                 <div
                   style={{
-                    width: "24px",
-                    height: "24px",
+                    width: "36px",
+                    height: "36px",
                     borderRadius: "50%",
-                    background: "#e2e8f0",
+                    background: "linear-gradient(135deg, #667eea, #764ba2)",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    fontSize: "12px",
+                    fontSize: "16px",
+                    fontWeight: "600",
+                    color: "white",
+                    boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
                   }}
                 >
-                  {user.role === "owner" ? "🏪" : "👤"}
+                  {user.role === "owner" ? "🏪" : getUserInitial()}
                 </div>
 
-                <div style={{ lineHeight: "1.1" }}>
+                {/* User Details */}
+                <div style={{ lineHeight: "1.3" }}>
                   <div
                     style={{
-                      fontSize: "12px",
+                      fontSize: "14px",
                       fontWeight: "600",
                       color: "#1e293b",
                     }}
@@ -122,37 +136,192 @@ const Navbar = () => {
                   </div>
                   <div
                     style={{
-                      fontSize: "10px",
+                      fontSize: "11px",
                       color: "#64748b",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      marginTop: "2px",
                     }}
                   >
-                    {user.role === "owner" ? "Owner" : "Customer"}
+                    <span
+                      style={{
+                        width: "6px",
+                        height: "6px",
+                        borderRadius: "50%",
+                        background: user.role === "owner" ? "#f59e0b" : "#10b981",
+                        display: "inline-block",
+                      }}
+                    />
+                    {user.role === "owner" ? "Shop Owner" : "Customer"}
                   </div>
                 </div>
               </div>
 
-              {/* Logout */}
+              {/* Logout Button */}
               <button
                 onClick={handleLogout}
-                onMouseEnter={() => setHoverLogout(true)}
-                onMouseLeave={() => setHoverLogout(false)}
                 style={{
-                  border: "1px solid #e2e8f0",
-                  padding: "5px 12px",
-                  borderRadius: "18px",
-                  fontSize: "12px",
+                  padding: "8px 20px",
+                  borderRadius: "40px",
+                  fontSize: "14px",
+                  fontWeight: "500",
+                  textDecoration: "none",
+                  background: "linear-gradient(135deg, #667eea, #764ba2)",
+                  color: "white",
+                  border: "none",
+                  transition: "opacity 0.2s ease",
                   cursor: "pointer",
-                  background: hoverLogout ? "#f1f5f9" : "transparent",
-                  color: "#64748b",
-                  transition: "0.2s",
                 }}
+                onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.9")}
+                onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
               >
                 Logout
               </button>
             </>
           )}
         </div>
+
+        {/* Mobile Menu Button */}
+        {user && (
+          <button
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            style={{
+              display: "none",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              padding: "8px",
+              borderRadius: "8px",
+              transition: "background 0.2s ease",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "#f1f5f9")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+          >
+            <span
+              style={{
+                fontSize: "20px",
+                color: "#64748b",
+              }}
+            >
+              {isMobileMenuOpen ? "✕" : "☰"}
+            </span>
+          </button>
+        )}
       </div>
+
+      {/* Mobile Menu */}
+      {isMobileMenuOpen && user && (
+        <div
+          style={{
+            position: "absolute",
+            top: "64px",
+            left: 0,
+            right: 0,
+            background: "white",
+            padding: "20px",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+            borderTop: "1px solid #e2e8f0",
+            display: "flex",
+            flexDirection: "column",
+            gap: "16px",
+            zIndex: 99,
+          }}
+        >
+          {/* Mobile User Info */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "12px",
+              padding: "12px",
+              background: "#f8fafc",
+              borderRadius: "12px",
+            }}
+          >
+            <div
+              style={{
+                width: "48px",
+                height: "48px",
+                borderRadius: "50%",
+                background: "linear-gradient(135deg, #667eea, #764ba2)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "20px",
+                fontWeight: "600",
+                color: "white",
+                boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+              }}
+            >
+              {user.role === "owner" ? "🏪" : getUserInitial()}
+            </div>
+            <div>
+              <div
+                style={{
+                  fontSize: "16px",
+                  fontWeight: "600",
+                  color: "#1e293b",
+                }}
+              >
+                {user.name}
+              </div>
+              <div
+                style={{
+                  fontSize: "13px",
+                  color: "#64748b",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  marginTop: "4px",
+                }}
+              >
+                <span
+                  style={{
+                    width: "8px",
+                    height: "8px",
+                    borderRadius: "50%",
+                    background: user.role === "owner" ? "#f59e0b" : "#10b981",
+                    display: "inline-block",
+                  }}
+                />
+                {user.role === "owner" ? "Shop Owner" : "Customer"}
+              </div>
+            </div>
+          </div>
+
+          {/* Mobile Logout Button */}
+          <button
+            onClick={handleLogout}
+            style={{
+              width: "100%",
+              padding: "8px 20px",
+              borderRadius: "40px",
+              fontSize: "14px",
+              fontWeight: "500",
+              textDecoration: "none",
+              background: "linear-gradient(135deg, #667eea, #764ba2)",
+              color: "white",
+              border: "none",
+              transition: "opacity 0.2s ease",
+              cursor: "pointer",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.9")}
+            onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
+          >
+            Logout
+          </button>
+        </div>
+      )}
+
+      {/* Mobile Styles */}
+      <style>{`
+        @media (max-width: 768px) {
+          .mobile-menu-button {
+            display: flex !important;
+          }
+        }
+      `}</style>
     </nav>
   );
 };

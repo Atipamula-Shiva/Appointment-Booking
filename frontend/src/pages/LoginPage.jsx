@@ -1,14 +1,16 @@
 import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { useAuth } from "../context/authContext";
+import { useAuth } from "../context/AuthContext";
+import useSnackbar from "../common/Snackbar";
 
 const LoginPage = () => {
   const navigate = useNavigate();
   const { login } = useAuth();
+  const { showSnackbar } = useSnackbar();
 
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState("customer");
+  const [role, setRole] = useState("CUSTOMER");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -26,13 +28,14 @@ const LoginPage = () => {
     e.preventDefault();
     setLoading(true);
     setError("");
-
-    const result = await login(email, password, role);
+    const result = await login(username, password, role);
 
     if (result.success) {
+      showSnackbar(`Welcome back, ${result.user.name}!`, "success", 3000);
       navigate("/");
     } else {
       setError(result.error || "Login failed. Please check your credentials.");
+      showSnackbar(result.error || "Login failed", "error", 4000);
     }
     setLoading(false);
   };
@@ -76,9 +79,9 @@ const LoginPage = () => {
             </p>
 
             <div style={{ marginTop: "40px", lineHeight: "1.6" }}>
-              <p>✔ Book appointments instantly</p>
-              <p>✔ Skip long waiting queues</p>
-              <p>✔ Manage shops easily</p>
+              <p>✓ Book appointments instantly</p>
+              <p>✓ Skip long waiting queues</p>
+              <p>✓ Manage shops easily</p>
             </div>
           </div>
         </div>
@@ -155,7 +158,7 @@ const LoginPage = () => {
               marginBottom: "20px",
             }}
           >
-            {["customer", "owner"].map((r) => (
+            {["CUSTOMER", "SHOP_OWNER"].map((r) => (
               <button
                 key={r}
                 onClick={() => setRole(r)}
@@ -169,9 +172,10 @@ const LoginPage = () => {
                   fontWeight: "600",
                   background: role === r ? "white" : "transparent",
                   color: role === r ? "#667eea" : "#475569",
+                  transition: "all 0.2s ease",
                 }}
               >
-                {r === "customer" ? "👤 Customer" : "🏪 Owner"}
+                {r === "CUSTOMER" ? "👤 Customer" : "🏪 Owner"}
               </button>
             ))}
           </div>
@@ -196,10 +200,10 @@ const LoginPage = () => {
             )}
 
             <input
-              type="email"
-              placeholder="Email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              type="text"
+              placeholder="Username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
               style={inputStyle}
               required
             />
@@ -225,32 +229,38 @@ const LoginPage = () => {
                 fontWeight: "600",
                 cursor: "pointer",
                 opacity: loading ? 0.7 : 1,
+                transition: "opacity 0.2s ease",
               }}
+              onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.9")}
+              onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
             >
               {loading ? "Signing in..." : "Sign In"}
             </button>
           </form>
 
           <p
-            style={{
-              textAlign: "center",
-              marginTop: "16px",
-              fontSize: "13px",
-              color: "#64748b",
-            }}
-          >
-            New to SPOTLO?{" "}
-            <Link
-              to="/register"
-              style={{
-                color: "#667eea",
-                textDecoration: "none",
-                fontWeight: "600",
-              }}
-            >
-              Create account
-            </Link>
-          </p>
+  style={{
+    textAlign: "center",
+    marginTop: "16px",
+    fontSize: "13px",
+    color: "#64748b",
+  }}
+>
+  New to SPOTLO?{" "}
+  <Link
+    to="/register"  
+    style={{
+      color: "#667eea",
+      textDecoration: "none",
+      fontWeight: "600",
+      transition: "opacity 0.2s ease",
+    }}
+    onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.8")}
+    onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
+  >
+    Create account
+  </Link>
+</p>
         </div>
       </div>
     </div>
@@ -263,6 +273,7 @@ const inputStyle = {
   border: "1px solid #e2e8f0",
   fontSize: "14px",
   outline: "none",
+  transition: "border-color 0.2s ease",
 };
 
 export default LoginPage;
