@@ -24,7 +24,7 @@ app = FastAPI(
 )
 
 origins = [
-    "http://localhost:5173",  # Frontend URL (adjust in production)
+    "https://www.spotlo.in",  # Frontend URL (adjust in production)
 ]
 app.add_middleware(
     CORSMiddleware,
