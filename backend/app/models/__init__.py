@@ -160,7 +160,7 @@ from datetime import datetime
 
 from sqlalchemy import (
     Boolean, Column, DateTime, Enum, Float, ForeignKey,
-    Integer, String, Text
+    Integer, String, Text, Date, Time,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
@@ -186,6 +186,11 @@ class OrderStatus(str, enum.Enum):
     DELIVERED = "delivered"
     CANCELLED = "cancelled"
 
+class BookingStatus(str, enum.Enum):
+    PENDING   = "pending"
+    CONFIRMED = "confirmed"
+    CANCELLED = "cancelled"
+    COMPLETED = "completed"
 
 # ─────────────────────────────────────────────
 # User
@@ -208,6 +213,8 @@ class User(Base):
     otp     = relationship("OTP", back_populates="user", uselist=False, cascade="all, delete-orphan")
     shop    = relationship("Shop", back_populates="owner", uselist=False)
     orders  = relationship("Order", back_populates="customer")
+    latitude    = Column(Float, nullable=True)  
+    longitude   = Column(Float, nullable=True)   
     
 
 
@@ -257,11 +264,13 @@ class Shop(Base):
     is_open     = Column(Boolean, default=True)
     created_at  = Column(DateTime, server_default=func.now())
     updated_at  = Column(DateTime, server_default=func.now(), onupdate=func.now())
+    latitude    = Column(Float, nullable=True)  
+    longitude   = Column(Float, nullable=True) 
 
     owner      = relationship("User", back_populates="shop")
     menu_items = relationship("MenuItem", back_populates="shop", cascade="all, delete-orphan")
     orders     = relationship("Order", back_populates="shop")
-
+    services   = relationship("Service", back_populates="shop", cascade="all, delete-orphan") 
 
 # ─────────────────────────────────────────────
 # Menu Item
@@ -324,3 +333,72 @@ class OrderItem(Base):
 
     order     = relationship("Order", back_populates="order_items")
     menu_item = relationship("MenuItem", back_populates="order_items")
+
+
+class Category(Base):
+    __tablename__ = "categories"
+    __table_args__ = {"schema": "abc"}
+
+    id   = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(String(100), nullable=False, unique=True)  # "Video Editing", "Cleaning"
+    icon_url = Column(String(500), nullable=True)
+
+    services = relationship("Service", back_populates="category")
+
+
+class Service(Base):  # replaces MenuItem
+    __tablename__ = "services"
+    __table_args__ = {"schema": "abc"}
+
+    id          = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    shop_id     = Column(UUID(as_uuid=True), ForeignKey("abc.shops.id", ondelete="CASCADE"))
+    category_id = Column(UUID(as_uuid=True), ForeignKey("abc.categories.id"))
+    name        = Column(String(150), nullable=False)   # "30-sec Reel Edit"
+    description = Column(Text, nullable=True)
+    price       = Column(Float, nullable=False)
+    duration_minutes = Column(Integer, nullable=False)  # how long the service takes
+    is_available = Column(Boolean, default=True)
+    image_url        = Column(String(500), nullable=True)
+
+    shop     = relationship("Shop", back_populates="services")
+    category = relationship("Category", back_populates="services")
+    slots    = relationship("TimeSlot", back_populates="service")
+
+
+class TimeSlot(Base):
+    __tablename__ = "time_slots"
+    __table_args__ = {"schema": "abc"}
+
+    id         = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    shop_id    = Column(UUID(as_uuid=True), ForeignKey("abc.shops.id", ondelete="CASCADE"))
+    service_id = Column(UUID(as_uuid=True), ForeignKey("abc.services.id", ondelete="CASCADE"))
+    date       = Column(Date, nullable=False)
+    start_time = Column(Time, nullable=False)
+    end_time   = Column(Time, nullable=False)
+    capacity   = Column(Integer, default=1)   # how many bookings allowed in this slot
+    booked     = Column(Integer, default=0)   # current bookings count
+
+    shop     = relationship("Shop")
+    service  = relationship("Service", back_populates="slots")
+    bookings = relationship("Booking", back_populates="slot")
+
+    @property
+    def is_available(self):
+        return self.booked < self.capacity
+
+
+class Booking(Base):
+    __tablename__ = "bookings"
+    __table_args__ = {"schema": "abc"}
+
+    id          = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    customer_id = Column(UUID(as_uuid=True), ForeignKey("abc.users.id"))
+    slot_id     = Column(UUID(as_uuid=True), ForeignKey("abc.time_slots.id"))
+    service_id  = Column(UUID(as_uuid=True), ForeignKey("abc.services.id"))
+    status      = Column(Enum(BookingStatus), default=BookingStatus.PENDING)
+    notes       = Column(Text, nullable=True)
+    created_at  = Column(DateTime, server_default=func.now())
+
+    customer = relationship("User")
+    slot     = relationship("TimeSlot", back_populates="bookings")
+    service  = relationship("Service")
