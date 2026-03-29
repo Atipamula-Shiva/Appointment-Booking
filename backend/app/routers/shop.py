@@ -156,6 +156,7 @@ from app.schemas.shop import (
     MenuItemCreate, MenuItemResponse, MenuItemUpdate,
     ShopCreate, ShopResponse, ShopUpdate,
 )
+from app.utils.utils import haversine_distance
 from app.schemas.booking import (
     SlotCreate, SlotResponse,
     BookingStatusUpdate, BookingResponse,
@@ -165,13 +166,6 @@ from app.schemas.booking import (
 
 router = APIRouter(prefix="/shop", tags=["Shop Owner"])
 
-
-def haversine_distance(lat1, lon1, lat2, lon2):
-    R = 6371
-    lat1, lon1, lat2, lon2 = map(radians, [lat1, lon1, lat2, lon2])
-    dlat, dlon = lat2 - lat1, lon2 - lon1
-    a = sin(dlat/2)**2 + cos(lat1)*cos(lat2)*sin(dlon/2)**2
-    return R * 2 * atan2(sqrt(a), sqrt(1 - a))
 
 
 # ── Shop management ───────────────────────────────────────
