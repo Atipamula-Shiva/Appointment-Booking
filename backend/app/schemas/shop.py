@@ -11,7 +11,8 @@ class ShopCreate(BaseModel):
     address: str | None = None
     phone: str | None = None
     image_url: str | None = None
-
+    latitude: float | None = None     
+    longitude: float | None = None
 
 class ShopUpdate(BaseModel):
     name: str | None = None
@@ -20,6 +21,8 @@ class ShopUpdate(BaseModel):
     phone: str | None = None
     image_url: str | None = None
     is_open: bool | None = None
+    latitude: float | None = None      
+    longitude: float | None = None
 
 
 class ShopResponse(BaseModel):
@@ -32,6 +35,8 @@ class ShopResponse(BaseModel):
     image_url: str | None
     is_open: bool
     created_at: datetime
+    latitude: float | None = None      
+    longitude: float | None = None
 
     model_config = {"from_attributes": True}
 
