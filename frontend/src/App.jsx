@@ -2,7 +2,7 @@
 // FILE: src/App.js
 // ============================================
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { AuthProvider } from './context/authContext';
+import { AuthProvider } from './context/AuthContext';
 import { SnackbarProvider } from './common/Snackbar';
 import ProtectedRoute from './components/ProtectedRoute';
 import Navbar from './components/Navbar';

@@ -4,7 +4,7 @@
 import shops from "../data/shops";
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
-import { useAuth } from '../context/authContext';
+import { useAuth } from '../context/AuthContext';
 
 // Enhanced Icons with better sizing
 const StarIcon = ({ filled = true }) => (
