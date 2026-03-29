@@ -5,19 +5,21 @@ import useSnackbar from "../common/Snackbar";
 
 const RegisterPage = () => {
   const navigate = useNavigate();
-  const { register } = useAuth();
+  const { register, verifyEmail } = useAuth();
   const { showSnackbar } = useSnackbar();
   
   const [formData, setFormData] = useState({
     username: "",
     password: "",
     confirmPassword: "",
-    name: "",
-    role: "customer"
+    email: "",
+    otp: "",
+    role: "CUSTOMER"
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [verificationStep, setVerificationStep] = useState(false); // false = registration, true = OTP verification
 
   useEffect(() => {
     const handleResize = () => {
@@ -30,43 +32,73 @@ const RegisterPage = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Validation
-    if (formData.password !== formData.confirmPassword) {
-      setError("Passwords don't match");
-      showSnackbar("Passwords don't match", "error", 3000);
-      return;
-    }
-    
-    if (formData.password.length < 6) {
-      setError("Password must be at least 6 characters");
-      showSnackbar("Password must be at least 6 characters", "error", 3000);
-      return;
-    }
-    
-    setLoading(true);
-    setError("");
-    
-    // Send exactly what API expects
-    const result = await register({
-      username: formData.username,     // ✅ username
-      password: formData.password,     // ✅ password
-      name: formData.name,             // ✅ name
-      role: formData.role              // ✅ role (will be converted to CUSTOMER or SHOP_OWNER in authService)
-    });
-    
-    if (result.success) {
-      showSnackbar(`Welcome ${formData.name}! Account created successfully`, "success", 3000);
-      // Redirect based on role
-      if (formData.role === "owner") {
-        navigate("/owner/dashboard");
+    if (!verificationStep) {
+      // First step: Registration
+      const emailRegex = /^[a-zA-Z0-9._%+-]+@([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$/;
+      if (!emailRegex.test(formData.email)) {
+        setError("Please enter a valid email address");
+        showSnackbar("Please enter a valid email address", "error", 3000);
+        return;
+      }
+      
+      if (formData.password !== formData.confirmPassword) {
+        setError("Passwords don't match");
+        showSnackbar("Passwords don't match", "error", 3000);
+        return;
+      }
+      
+      if (formData.password.length < 6) {
+        setError("Password must be at least 6 characters");
+        showSnackbar("Password must be at least 6 characters", "error", 3000);
+        return;
+      }
+      
+      setLoading(true);
+      setError("");
+      
+      // Call register API to send OTP
+      const result = await register({
+        username: formData.username,     
+        password: formData.password,
+        email: formData.email,         
+        role: formData.role           
+      });
+      
+      setLoading(false);
+      
+      if (result.success) {
+        showSnackbar("OTP sent to your email! Please enter the OTP to verify.", "success", 3000);
+        setVerificationStep(true); // Switch to OTP verification step
       } else {
-        navigate("/");
+        setError(result.error);
+        showSnackbar(result.error || "Registration failed", "error", 4000);
       }
     } else {
-      setError(result.error);
-      showSnackbar(result.error || "Registration failed", "error", 4000);
+      // Second step: OTP Verification
+      if (!formData.otp || formData.otp.length < 4) {
+        setError("Please enter a valid OTP");
+        showSnackbar("Please enter a valid OTP", "error", 3000);
+        return;
+      }
+      
+      setLoading(true);
+      setError("");
+      
+      // Call verify API
+      const result = await verifyEmail({
+        email: formData.email,
+        otp: formData.otp,
+      });
+      
+      if (result.success) {
+        showSnackbar("Email verified successfully! Please login to continue", "success", 3000);
+        navigate("/login");
+      } else {
+        setError(result.error);
+        showSnackbar(result.error || "Verification failed", "error", 4000);
+      }
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
@@ -163,7 +195,7 @@ const RegisterPage = () => {
               marginBottom: "6px",
             }}
           >
-            Create Account
+            {verificationStep ? "Verify Email" : "Create Account"}
           </h1>
 
           <p
@@ -174,40 +206,42 @@ const RegisterPage = () => {
               marginBottom: "20px",
             }}
           >
-            Join SPOTLO today
+            {verificationStep ? "Enter the OTP sent to your email" : "Join SPOTLO today"}
           </p>
 
-          {/* Role Tabs */}
-          <div
-            style={{
-              display: "flex",
-              background: "#f1f5f9",
-              borderRadius: "30px",
-              padding: "4px",
-              marginBottom: "20px",
-            }}
-          >
-            {["customer", "owner"].map((r) => (
-              <button
-                key={r}
-                onClick={() => setFormData({...formData, role: r})}
-                style={{
-                  flex: 1,
-                  padding: "10px",
-                  borderRadius: "30px",
-                  border: "none",
-                  cursor: "pointer",
-                  fontSize: "13px",
-                  fontWeight: "600",
-                  background: formData.role === r ? "white" : "transparent",
-                  color: formData.role === r ? "#667eea" : "#475569",
-                  transition: "all 0.2s ease",
-                }}
-              >
-                {r === "customer" ? "👤 Customer" : "🏪 Owner"}
-              </button>
-            ))}
-          </div>
+          {/* Role Tabs - Only show in registration step */}
+          {!verificationStep && (
+            <div
+              style={{
+                display: "flex",
+                background: "#f1f5f9",
+                borderRadius: "30px",
+                padding: "4px",
+                marginBottom: "20px",
+              }}
+            >
+              {["CUSTOMER", "SHOP_OWNER"].map((r) => (
+                <button
+                  key={r}
+                  onClick={() => setFormData({...formData, role: r})}
+                  style={{
+                    flex: 1,
+                    padding: "10px",
+                    borderRadius: "30px",
+                    border: "none",
+                    cursor: "pointer",
+                    fontSize: "13px",
+                    fontWeight: "600",
+                    background: formData.role === r ? "white" : "transparent",
+                    color: formData.role === r ? "#667eea" : "#475569",
+                    transition: "all 0.2s ease",
+                  }}
+                >
+                  {r === "CUSTOMER" ? "👤 Customer" : "🏪 Owner"}
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* Form */}
           <form
@@ -229,40 +263,56 @@ const RegisterPage = () => {
             )}
 
             <input
-              type="text"
-              placeholder="Full Name"
-              value={formData.name}
-              onChange={(e) => setFormData({...formData, name: e.target.value})}
+              type="email"
+              placeholder="Email Address"
+              value={formData.email}
+              onChange={(e) => setFormData({...formData, email: e.target.value})}
               style={inputStyle}
               required
+              disabled={verificationStep} // Disable email input in verification step
             />
 
-            <input
-              type="text"
-              placeholder="Username"
-              value={formData.username}
-              onChange={(e) => setFormData({...formData, username: e.target.value})}
-              style={inputStyle}
-              required
-            />
+            {!verificationStep && (
+              <>
+                <input
+                  type="text"
+                  placeholder="Username"
+                  value={formData.username}
+                  onChange={(e) => setFormData({...formData, username: e.target.value})}
+                  style={inputStyle}
+                  required
+                />
 
-            <input
-              type="password"
-              placeholder="Password"
-              value={formData.password}
-              onChange={(e) => setFormData({...formData, password: e.target.value})}
-              style={inputStyle}
-              required
-            />
+                <input
+                  type="password"
+                  placeholder="Password"
+                  value={formData.password}
+                  onChange={(e) => setFormData({...formData, password: e.target.value})}
+                  style={inputStyle}
+                  required
+                />
 
-            <input
-              type="password"
-              placeholder="Confirm Password"
-              value={formData.confirmPassword}
-              onChange={(e) => setFormData({...formData, confirmPassword: e.target.value})}
-              style={inputStyle}
-              required
-            />
+                <input
+                  type="password"
+                  placeholder="Confirm Password"
+                  value={formData.confirmPassword}
+                  onChange={(e) => setFormData({...formData, confirmPassword: e.target.value})}
+                  style={inputStyle}
+                  required
+                />
+              </>
+            )}
+
+            {verificationStep && (
+              <input
+                type="text"
+                placeholder="OTP"
+                value={formData.otp}
+                onChange={(e) => setFormData({...formData, otp: e.target.value})}
+                style={inputStyle}
+                required
+              />
+            )}
 
             <button
               type="submit"
@@ -281,7 +331,7 @@ const RegisterPage = () => {
               onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.9")}
               onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
             >
-              {loading ? "Creating account..." : "Create Account"}
+              {loading ? (verificationStep ? "Verifying..." : "Creating account...") : (verificationStep ? "Verify Email" : "Create Account")}
             </button>
           </form>
 

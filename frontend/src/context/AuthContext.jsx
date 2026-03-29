@@ -54,13 +54,14 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (username, password, role) => {
     try {
-      const response = await authService.login({ username, password });
-      
-      const expectedRole = role === 'owner' ? 'SHOP_OWNER' : 'CUSTOMER';
-      if (response.user.role !== expectedRole) {
-        authService.logout();
-        throw new Error(`Invalid role. Please login as ${role}`);
-      }
+      console.log({ username, password, role }, "Login credentials received in AuthContext"); // Debug log
+      const response = await authService.login({ username, password,role });
+      console.log('Login successful, response:', response);
+      // const expectedRole = role === 'CUSTOMER' ? 'CUSTOMER' : 'SHOP_OWNER';
+      // if (response.user.role !== expectedRole) {
+      //   authService.logout();
+      //   throw new Error(`Invalid role. Please login as ${role}`);
+      // }
       
       setUser(response.user);
       return { success: true, user: response.user };
@@ -77,7 +78,21 @@ export const AuthProvider = ({ children }) => {
       return { success: true, user: response.user };
     } catch (error) {
       console.error('Register error:', error);
-      return { success: false, error: error.message };
+      // Error message is already extracted in authService
+      const errorMessage = error.message || "Registration failed";
+      return { success: false, error: errorMessage };
+    }
+  };
+
+  const verifyEmail = async (verifyData) => {
+    try {
+      const response = await authService.verifyEmail(verifyData);
+      return { success: true };
+    } catch (error) {
+      console.error('Verify error:', error);
+      // Error message is already extracted in authService
+      const errorMessage = error.message || "Verification failed";
+      return { success: false, error: errorMessage };
     }
   };
 
@@ -95,6 +110,7 @@ export const AuthProvider = ({ children }) => {
     loading,
     login,
     register,
+    verifyEmail,
     logout,
     isAuthenticated,
   };

@@ -10,7 +10,7 @@ const LoginPage = () => {
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState("customer");
+  const [role, setRole] = useState("CUSTOMER");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -28,7 +28,6 @@ const LoginPage = () => {
     e.preventDefault();
     setLoading(true);
     setError("");
-
     const result = await login(username, password, role);
 
     if (result.success) {
@@ -159,7 +158,7 @@ const LoginPage = () => {
               marginBottom: "20px",
             }}
           >
-            {["customer", "owner"].map((r) => (
+            {["CUSTOMER", "SHOP_OWNER"].map((r) => (
               <button
                 key={r}
                 onClick={() => setRole(r)}
@@ -176,7 +175,7 @@ const LoginPage = () => {
                   transition: "all 0.2s ease",
                 }}
               >
-                {r === "customer" ? "👤 Customer" : "🏪 Owner"}
+                {r === "CUSTOMER" ? "👤 Customer" : "🏪 Owner"}
               </button>
             ))}
           </div>

@@ -7,8 +7,8 @@ class AuthService {
       const payload = {
         username: userData.username,   
         password: userData.password,    
-        role: userData.role === 'owner' ? 'SHOP_OWNER' : 'CUSTOMER',
-        name: userData.name,            
+        role: userData.role, 
+        email: userData.email,  
       };
       
       console.log('Register payload:', payload); // Debug log
@@ -19,15 +19,66 @@ class AuthService {
       return response;
     } catch (error) {
       console.error('Register error:', error.response?.data);
-      throw error;
+      
+      // Extract error message here and throw a new error with the message
+      let errorMessage = "Registration failed";
+      if (error.response && error.response.data) {
+        const data = error.response.data;
+        if (typeof data === 'string') {
+          errorMessage = data;
+        } else if (data.detail) {
+          errorMessage = data.detail;
+        } else if (data.message) {
+          errorMessage = data.message;
+        }
+      }
+      
+      // Throw a new error with the extracted message
+      throw new Error(errorMessage);
+    }
+  }
+
+  async verifyEmail(verifyData) {
+    try {
+      const payload = {
+        email: verifyData.email,
+        otp: verifyData.otp,
+      };
+      
+      console.log('Verify payload:', payload); // Debug log
+      
+      const response = await api.post('/auth/password/register/verify', payload);
+      console.log('Verify response:', response.data);
+      
+      return response;
+    } catch (error) {
+      console.error('Verify error:', error.response?.data);
+      
+      // Extract error message here and throw a new error with the message
+      let errorMessage = "Verification failed";
+      if (error.response && error.response.data) {
+        const data = error.response.data;
+        if (typeof data === 'string') {
+          errorMessage = data;
+        } else if (data.detail) {
+          errorMessage = data.detail;
+        } else if (data.message) {
+          errorMessage = data.message;
+        }
+      }
+      
+      // Throw a new error with the extracted message
+      throw new Error(errorMessage);
     }
   }
 
   async login(credentials) {
+    console.log(credentials,"Login credentials received in AuthService"); // Debug log
     try {
       const payload = {
         username: credentials.username,
         password: credentials.password,
+        role: credentials.role,
       };
       
       console.log('Login payload:', payload);
@@ -48,7 +99,22 @@ class AuthService {
       return { user, ...response.data };
     } catch (error) {
       console.error('Login error:', error.response?.data);
-      throw error;
+      
+      // Extract error message here and throw a new error with the message
+      let errorMessage = "Login failed";
+      if (error.response && error.response.data) {
+        const data = error.response.data;
+        if (typeof data === 'string') {
+          errorMessage = data;
+        } else if (data.detail) {
+          errorMessage = data.detail;
+        } else if (data.message) {
+          errorMessage = data.message;
+        }
+      }
+      
+      // Throw a new error with the extracted message
+      throw new Error(errorMessage);
     }
   }
 
@@ -68,7 +134,22 @@ class AuthService {
       return { access_token, refresh_token };
     } catch (error) {
       console.error('Refresh token error:', error);
-      throw error;
+      
+      // Extract error message here and throw a new error with the message
+      let errorMessage = "Token refresh failed";
+      if (error.response && error.response.data) {
+        const data = error.response.data;
+        if (typeof data === 'string') {
+          errorMessage = data;
+        } else if (data.detail) {
+          errorMessage = data.detail;
+        } else if (data.message) {
+          errorMessage = data.message;
+        }
+      }
+      
+      // Throw a new error with the extracted message
+      throw new Error(errorMessage);
     }
   }
 
