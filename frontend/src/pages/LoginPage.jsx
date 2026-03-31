@@ -32,7 +32,8 @@ const LoginPage = () => {
 
     if (result.success) {
       showSnackbar(`Welcome back, ${result.user.name}!`, "success", 3000);
-      navigate("/");
+      const redirectTo = result.user.role === 'owner' ? '/shop-owner' : '/home';
+      navigate(redirectTo);
     } else {
       setError(result.error || "Login failed. Please check your credentials.");
       showSnackbar(result.error || "Login failed", "error", 4000);
@@ -236,6 +237,23 @@ const LoginPage = () => {
             >
               {loading ? "Signing in..." : "Sign In"}
             </button>
+
+            <div style={{ textAlign: "center", marginTop: "12px" }}>
+              <Link
+                to="/forgot-password"
+                style={{
+                  fontSize: "12px",
+                  color: "#667eea",
+                  textDecoration: "none",
+                  fontWeight: "500",
+                  transition: "opacity 0.2s ease",
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.8")}
+                onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
+              >
+                Forgot Password?
+              </Link>
+            </div>
           </form>
 
           <p
