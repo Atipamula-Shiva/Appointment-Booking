@@ -118,6 +118,33 @@ class AuthService {
     }
   }
 
+  async getProfile() {
+    try {
+      const response = await api.get('/profile');
+      return {
+        success: true,
+        data: response.data,
+      };
+    } catch (error) {
+      console.error('Get profile error:', error.response?.data || error);
+      let errorMessage = 'Failed to fetch profile';
+      if (error.response && error.response.data) {
+        const data = error.response.data;
+        if (typeof data === 'string') {
+          errorMessage = data;
+        } else if (data.detail) {
+          errorMessage = data.detail;
+        } else if (data.message) {
+          errorMessage = data.message;
+        }
+      }
+      return {
+        success: false,
+        error: errorMessage,
+      };
+    }
+  }
+
   async refreshToken(refreshToken) {
     try {
       const response = await api.post('/auth/password/refresh', {

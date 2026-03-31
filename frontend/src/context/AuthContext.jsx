@@ -13,26 +13,51 @@ export const AuthProvider = ({ children }) => {
         // Try to get user from localStorage first
         const storedUser = authService.getCurrentUser();
         const token = localStorage.getItem('access_token');
-        
-        if (token && storedUser) {
-          // Check if token is expired
-          if (authService.isAuthenticated()) {
-            setUser(storedUser);
-          } else {
-            // Token expired, try to refresh
+
+        if (token) {
+          // Token exists; verify or refresh
+          if (!authService.isAuthenticated()) {
             const refreshToken = localStorage.getItem('refresh_token');
             if (refreshToken) {
               try {
                 const response = await authService.refreshToken(refreshToken);
-                if (response.access_token) {
-                  const decodedUser = authService.decodeToken(response.access_token);
-                  setUser(decodedUser);
-                  localStorage.setItem('user', JSON.stringify(decodedUser));
+                if (!response.access_token) {
+                  throw new Error('No access token after refresh');
                 }
               } catch (refreshError) {
                 console.error('Refresh failed:', refreshError);
                 authService.logout();
+                setLoading(false);
+                return;
               }
+            } else {
+              authService.logout();
+              setLoading(false);
+              return;
+            }
+          }
+
+          // Load profile from backend to ensure fresh role/user_id
+          const profileResult = await authService.getProfile();
+          if (profileResult.success) {
+            const profileData = profileResult.data;
+            const normalizedUser = {
+              ...profileData,
+              role: profileData.role === 'SHOP_OWNER' ? 'owner' : profileData.role?.toLowerCase(),
+              name: profileData.username || profileData.name || '',
+            };
+            setUser(normalizedUser);
+            localStorage.setItem('user', JSON.stringify(normalizedUser));
+          } else {
+            // If profile fails, fallback to stored user for now
+            if (storedUser) {
+              const fallbackUser = {
+                ...storedUser,
+                role: storedUser.role === 'SHOP_OWNER' ? 'owner' : storedUser.role?.toLowerCase(),
+                name: storedUser.username || storedUser.name || '',
+              };
+              setUser(fallbackUser);
+              localStorage.setItem('user', JSON.stringify(fallbackUser));
             } else {
               authService.logout();
             }
@@ -54,20 +79,29 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (username, password, role) => {
     try {
-      console.log({ username, password, role }, "Login credentials received in AuthContext"); // Debug log
-      const response = await authService.login({ username, password,role });
+      console.log({ username, password, role }, "Login credentials received in AuthContext");
+      const response = await authService.login({ username, password, role });
       console.log('Login successful, response:', response);
-      // const expectedRole = role === 'CUSTOMER' ? 'CUSTOMER' : 'SHOP_OWNER';
-      // if (response.user.role !== expectedRole) {
-      //   authService.logout();
-      //   throw new Error(`Invalid role. Please login as ${role}`);
-      // }
-      
-      setUser(response.user);
-      return { success: true, user: response.user };
+
+      // Fetch authoritative profile from backend
+      const profileResult = await authService.getProfile();
+      if (!profileResult.success) {
+        throw new Error(profileResult.error || 'Unable to load profile after login');
+      }
+
+      const profileData = profileResult.data;
+      const normalizedUser = {
+        ...profileData,
+        role: profileData.role === 'SHOP_OWNER' ? 'owner' : profileData.role?.toLowerCase(),
+        name: profileData.username || profileData.name || '',
+      };
+      setUser(normalizedUser);
+      localStorage.setItem('user', JSON.stringify(normalizedUser));
+
+      return { success: true, user: normalizedUser };
     } catch (error) {
       console.error('Login error:', error);
-      return { success: false, error: error.message };
+      return { success: false, error: error.message || 'Login failed' };
     }
   };
 

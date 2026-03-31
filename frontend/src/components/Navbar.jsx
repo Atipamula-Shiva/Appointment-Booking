@@ -17,7 +17,8 @@ const Navbar = () => {
   };
 
   const getUserInitial = () => {
-    return user?.name?.charAt(0).toUpperCase() || "U";
+    const name = user?.name || user?.username || 'User';
+    return name.charAt(0).toUpperCase();
   };
 
   return (
@@ -132,7 +133,7 @@ const Navbar = () => {
                       color: "#1e293b",
                     }}
                   >
-                    {user.name}
+                    {user.name || user.username || 'User'}
                   </div>
                   <div
                     style={{
