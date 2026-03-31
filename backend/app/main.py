@@ -36,7 +36,7 @@ app.add_middleware(
 
 
 app.include_router(auth_password.router)
-app.include_router(auth.router)
+app.include_router(auth.router) 
 app.include_router(shop.router)
 app.include_router(orders.router)
 app.include_router(profile_router.router)
