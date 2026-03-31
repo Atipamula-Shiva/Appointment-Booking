@@ -42,6 +42,10 @@ app.include_router(orders.router)
 app.include_router(profile_router.router)
 
 
-@app.get("/", tags=["Health"])
+# @app.get("/", tags=["Health"])
+# def health_check():
+#     return {"status": "ok", "service": "Food Ordering API"}
+
+@app.api_route("/", methods=["GET", "HEAD"], tags=["Health"])
 def health_check():
     return {"status": "ok", "service": "Food Ordering API"}
