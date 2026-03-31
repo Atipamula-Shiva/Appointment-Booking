@@ -14,13 +14,8 @@ class Settings(BaseSettings):
 
     OTP_EXPIRE_MINUTES: int = 10
 
-    MAIL_USERNAME: str
-    MAIL_PASSWORD: str
+    RESEND_API_KEY: str        # ← replaces all MAIL_* fields
     MAIL_FROM: str
-    MAIL_SERVER: str
-    MAIL_PORT: int = 587
-    MAIL_TLS: bool = True
-    MAIL_SSL: bool = False
 
     class Config:
         env_file = ".env"
