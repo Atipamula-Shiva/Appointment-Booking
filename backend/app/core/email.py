@@ -1,23 +1,12 @@
-from fastapi_mail import FastMail, MessageSchema, ConnectionConfig
+import resend
 from app.core.config import settings
 
-conf = ConnectionConfig(
-    MAIL_USERNAME=settings.MAIL_USERNAME,
-    MAIL_PASSWORD=settings.MAIL_PASSWORD,
-    MAIL_FROM=settings.MAIL_FROM,
-    MAIL_PORT=settings.MAIL_PORT,
-    MAIL_SERVER=settings.MAIL_SERVER,
-    MAIL_STARTTLS=settings.MAIL_TLS,
-    MAIL_SSL_TLS=settings.MAIL_SSL,
-    USE_CREDENTIALS=True
-)
+resend.api_key = settings.RESEND_API_KEY
 
 async def send_email(to: str, subject: str, body: str):
-    message = MessageSchema(
-        subject=subject,
-        recipients=[to],
-        body=body,
-        subtype="plain"
-    )
-    fm = FastMail(conf)
-    await fm.send_message(message)
+    resend.Emails.send({
+        "from": "Spotlo <noreply@support.spotlo.in>",
+        "to": to,
+        "subject": subject,
+        "text": body
+    })
