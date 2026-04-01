@@ -44,44 +44,7 @@ const LandingPage = () => {
             padding: '60px 24px 80px',
           }}
         >
-          {/* Logo */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '12px',
-              marginBottom: '80px',
-              opacity: isVisible ? 1 : 0,
-              transition: 'opacity 0.6s ease',
-            }}
-          >
-            <div
-              style={{
-                width: '40px',
-                height: '40px',
-                background: 'linear-gradient(135deg, #4f46e5, #7c3aed)',
-                borderRadius: '10px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <span style={{ color: 'white', fontSize: '20px', fontWeight: 'bold' }}>S</span>
-            </div>
-            <span
-              style={{
-                fontSize: '24px',
-                fontWeight: '600',
-                background: 'linear-gradient(135deg, #111827, #4f46e5)',
-                WebkitBackgroundClip: 'text',
-                backgroundClip: 'text',
-                color: 'transparent',
-                letterSpacing: '-0.3px',
-              }}
-            >
-              Spotlo
-            </span>
-          </div>
+      
 
           {/* Main Content */}
           <div
@@ -97,20 +60,6 @@ const LandingPage = () => {
           >
             {/* Left Column */}
             <div>
-              <div
-                style={{
-                  display: 'inline-block',
-                  background: 'linear-gradient(135deg, #e0e7ff, #ede9fe)',
-                  padding: '4px 12px',
-                  borderRadius: '20px',
-                  fontSize: '13px',
-                  fontWeight: '500',
-                  color: '#4f46e5',
-                  marginBottom: '24px',
-                }}
-              >
-                ✨ Simplify Your Schedule
-              </div>
               <h1
                 style={{
                   fontSize: '52px',
@@ -495,7 +444,6 @@ const LandingPage = () => {
               <p style={{ fontSize: '14px', opacity: 0.9, marginBottom: '24px' }}>
                 "Spotlo has transformed how we manage appointments. Our no-show rate dropped by 70%."
               </p>
-              <div style={{ fontSize: '13px', opacity: 0.8 }}>— Sarah Johnson, Business Owner</div>
             </div>
           </div>
         </div>
@@ -592,7 +540,7 @@ const LandingPage = () => {
             </div>
           </div>
           <div style={{ textAlign: 'center', fontSize: '13px', paddingTop: '32px', borderTop: '1px solid #374151' }}>
-            © 2024 Spotlo. All rights reserved.
+            © 2026 Spotlo. All rights reserved.
           </div>
         </div>
       </div>

@@ -1,4 +1,4 @@
-import api from './api';
+import api from '../pages/api';
 
 class AuthService {
   async register(userData) {

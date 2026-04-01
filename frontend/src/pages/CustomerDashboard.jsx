@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import useSnackbar from '../common/Snackbar';
 import customerApi from '../services/customerApi';
+import AppointmentsDialog from '../components/AppointmentsDialog';
 
 const StarIcon = ({ filled = true }) => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill={filled ? '#FFD700' : '#E2E8F0'} xmlns="http://www.w3.org/2000/svg">
@@ -34,6 +35,12 @@ const ClockIcon = () => (
   </svg>
 );
 
+const CalendarIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+    <path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V9h14v10zM7 11h5v5H7v-5z"/>
+  </svg>
+);
+
 const categories = [
   'Food & Catering',
   'Health & Wellness',
@@ -58,6 +65,17 @@ function CustomerDashboard() {
   const [selectedCategory, setSelectedCategory] = useState('All Categories');
   const [selectedLocation, setSelectedLocation] = useState('all');
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+  const [appointments, setAppointments] = useState([]);
+  const [stats, setStats] = useState({
+    total: 0,
+    pending: 0,
+    confirmed: 0,
+    completed: 0,
+    cancelled: 0
+  });
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [myAppointments, setMyAppointments] = useState([]);
+  const [dialogLoading, setDialogLoading] = useState(false);
 
   useEffect(() => {
     const handleResize = () => setWindowWidth(window.innerWidth);
@@ -67,6 +85,7 @@ function CustomerDashboard() {
 
   useEffect(() => {
     fetchShops();
+    fetchAppointments();
   }, []);
 
   const fetchShops = async () => {
@@ -81,6 +100,88 @@ function CustomerDashboard() {
       showSnackbar(result.error, 'error', 3000);
     }
     setLoading(false);
+  };
+
+  const fetchAppointments = async () => {
+    // Fetch real appointment stats from API
+    try {
+      const result = await customerApi.getMyBookings();
+      if (result.success) {
+        const appointmentsData = result.data || [];
+        
+        // Calculate statistics
+        const pending = appointmentsData.filter(a => a.status === 'PENDING').length;
+        const confirmed = appointmentsData.filter(a => a.status === 'CONFIRMED').length;
+        const completed = appointmentsData.filter(a => a.status === 'COMPLETED').length;
+        const cancelled = appointmentsData.filter(a => a.status === 'CANCELLED').length;
+        
+        setStats({
+          total: appointmentsData.length,
+          pending,
+          confirmed,
+          completed,
+          cancelled
+        });
+      } else {
+        // Set default stats if API fails
+        setStats({
+          total: 0,
+          pending: 0,
+          confirmed: 0,
+          completed: 0,
+          cancelled: 0
+        });
+      }
+    } catch (err) {
+      console.error('Failed to fetch appointments for stats:', err);
+      setStats({
+        total: 0,
+        pending: 0,
+        confirmed: 0,
+        completed: 0,
+        cancelled: 0
+      });
+    }
+  };
+
+  const fetchMyBookings = async () => {
+    setDialogLoading(true);
+    try {
+      // Call the actual API
+      const result = await customerApi.getMyBookings();
+      if (result.success) {
+        setMyAppointments(result.data || []);
+        // Also update stats with real data if needed
+        if (result.data && result.data.length > 0) {
+          const pending = result.data.filter(a => a.status === 'PENDING').length;
+          const confirmed = result.data.filter(a => a.status === 'CONFIRMED').length;
+          const completed = result.data.filter(a => a.status === 'COMPLETED').length;
+          const cancelled = result.data.filter(a => a.status === 'CANCELLED').length;
+          
+          setStats({
+            total: result.data.length,
+            pending,
+            confirmed,
+            completed,
+            cancelled
+          });
+        }
+      } else {
+        showSnackbar(result.error, 'error', 3000);
+        setMyAppointments([]);
+      }
+    } catch (err) {
+      console.error('Failed to fetch bookings:', err);
+      showSnackbar('Failed to fetch bookings', 'error', 3000);
+      setMyAppointments([]);
+    } finally {
+      setDialogLoading(false);
+    }
+  };
+
+  const handleViewAppointments = async () => {
+    await fetchMyBookings();
+    setDialogOpen(true);
   };
 
   const filteredShops = shops.filter((shop) => {
@@ -115,10 +216,14 @@ function CustomerDashboard() {
   const isMobile = windowWidth <= 480;
   const isTablet = windowWidth <= 768;
 
-  // Calculate statistics (basic values from /shops response)
-  const activeShops = shops.length;
-  const totalServices = shops.reduce((acc, shop) => acc + (shop.services?.length || 0), 0); // optional if included by backend
-  const uniqueLocations = [...new Set(shops.map((s) => s.address).filter(Boolean))].length;
+  // Statistics cards data
+  const statsCards = [
+    { label: "Total Appointments", value: stats.total, icon: "📅", color: "#667eea", bg: "#667eea10" },
+    { label: "Pending", value: stats.pending, icon: "⏳", color: "#f59e0b", bg: "#f59e0b10" },
+    { label: "Confirmed", value: stats.confirmed, icon: "✓", color: "#10b981", bg: "#10b98110" },
+    { label: "Completed", value: stats.completed, icon: "✅", color: "#3b82f6", bg: "#3b82f610" },
+    { label: "Cancelled", value: stats.cancelled, icon: "❌", color: "#ef4444", bg: "#ef444410" },
+  ];
 
   if (loading) {
     return (
@@ -137,7 +242,7 @@ function CustomerDashboard() {
             color: '#667eea', 
             marginBottom: '1rem',
             fontWeight: '500',
-          }}>Loading shops...</div>
+          }}>Loading your dashboard...</div>
           <div style={{ 
             width: '50px', 
             height: '50px', 
@@ -156,7 +261,7 @@ function CustomerDashboard() {
     <div style={{
       minHeight: "100vh",
       background: "linear-gradient(145deg, #f8fafc 0%, #f1f5f9 100%)",
-      fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+      fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
       position: "relative",
     }}>
       {/* Hero Section */}
@@ -194,29 +299,25 @@ function CustomerDashboard() {
           zIndex: 1,
         }}>
           <h1 style={{
-            fontSize: isMobile ? "32px" : isTablet ? "42px" : "52px",
+            fontSize: isMobile ? "28px" : isTablet ? "38px" : "48px",
             fontWeight: "800",
             color: "white",
-            margin: "0 0 16px 0",
+            margin: "0 0 12px 0",
             lineHeight: 1.2,
             textShadow: "0 2px 10px rgba(0,0,0,0.1)",
             textAlign: "center",
           }}>
-            Hello, {user?.name || 'Customer'}! 👋
+            Welcome back, {user?.name?.split(' ')[0] || 'Customer'}! 👋
           </h1>
           <p style={{
-            fontSize: isMobile ? "16px" : "18px",
-            color: "rgba(255,255,255,0.9)",
-            maxWidth: "700px",
+            fontSize: isMobile ? "14px" : "16px",
+            color: "rgba(255,255,255,0.95)",
+            maxWidth: "600px",
             margin: "0 auto 32px",
             textAlign: "center",
             lineHeight: 1.6,
           }}>
-            Explore the nicest shops in your area and book appointments instantly.
-            <br />
-            <span style={{ fontSize: "14px", opacity: 0.94 }}>
-              {shops.length} shops available near you. Refine your search & find your perfect slot.
-            </span>
+            Discover amazing services and book appointments in seconds
           </p>
 
           <div style={{
@@ -235,25 +336,26 @@ function CustomerDashboard() {
             </div>
             <input
               type="text"
-              placeholder="Search shops, city or speciality..."
+              placeholder="Search shops, services, or locations..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               style={{
                 width: "100%",
-                padding: isMobile ? "16px 16px 16px 48px" : "18px 18px 18px 52px",
+                padding: isMobile ? "14px 16px 14px 48px" : "16px 20px 16px 52px",
                 border: "none",
                 borderRadius: "50px",
-                fontSize: isMobile ? "14px" : "16px",
+                fontSize: isMobile ? "14px" : "15px",
                 boxShadow: "0 10px 30px rgba(0,0,0,0.2)",
                 outline: "none",
                 boxSizing: "border-box",
               }}
+              autoFocus={false}
             />
           </div>
         </div>
       </div>
 
-      {/* Stats Section */}
+      {/* Stats Section - Enhanced with Appointment Statistics */}
       <div style={{
         maxWidth: "1200px",
         margin: "-40px auto 40px",
@@ -263,66 +365,134 @@ function CustomerDashboard() {
       }}>
         <div style={{
           display: "grid",
-          gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)",
-          gap: "20px",
+          gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(5, 1fr)",
+          gap: "15px",
         }}>
-          {[
-            { label: "Active Businesses", value: activeShops, icon: "🏪", color: "#667eea" },
-            { label: "Total Services", value: totalServices, icon: "💇", color: "#764ba2" },
-            { label: "Locations", value: uniqueLocations, icon: "📍", color: "#25D366" },
-          ].map((stat, index) => (
+          {statsCards.map((stat, index) => (
             <div
               key={index}
               style={{
                 background: "white",
-                borderRadius: "20px",
-                padding: isMobile ? "20px" : "24px",
-                boxShadow: "0 10px 30px rgba(0,0,0,0.1)",
-                display: "flex",
-                alignItems: "center",
-                gap: "16px",
-                animation: `slideUp 0.5s ease ${index * 0.1}s`,
-                transition: "transform 0.3s ease, box-shadow 0.3s ease",
+                borderRadius: "16px",
+                padding: isMobile ? "16px" : "20px",
+                boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+                transition: "all 0.3s ease",
+                cursor: "pointer",
+                border: `1px solid ${stat.bg}`,
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.transform = "translateY(-5px)";
-                e.currentTarget.style.boxShadow = "0 15px 40px rgba(0,0,0,0.15)";
+                e.currentTarget.style.transform = "translateY(-3px)";
+                e.currentTarget.style.boxShadow = "0 8px 20px rgba(0,0,0,0.12)";
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.transform = "translateY(0)";
-                e.currentTarget.style.boxShadow = "0 10px 30px rgba(0,0,0,0.1)";
+                e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.08)";
               }}
             >
               <div style={{
-                width: isMobile ? "50px" : "60px",
-                height: isMobile ? "50px" : "60px",
-                borderRadius: "15px",
-                background: `${stat.color}15`,
                 display: "flex",
                 alignItems: "center",
-                justifyContent: "center",
-                fontSize: isMobile ? "24px" : "28px",
+                justifyContent: "space-between",
+                marginBottom: "12px",
               }}>
-                {stat.icon}
-              </div>
-              <div>
                 <div style={{
-                  fontSize: isMobile ? "20px" : "28px",
-                  fontWeight: "700",
+                  fontSize: isMobile ? "24px" : "28px",
+                }}>
+                  {stat.icon}
+                </div>
+                <div style={{
+                  fontSize: "11px",
                   color: stat.color,
-                  lineHeight: 1.2,
+                  fontWeight: "600",
+                  background: stat.bg,
+                  padding: "4px 8px",
+                  borderRadius: "20px",
                 }}>
-                  {stat.value}
+                  {stat.label === "Total Appointments" ? "Total" : stat.label}
                 </div>
-                <div style={{
-                  fontSize: isMobile ? "13px" : "14px",
-                  color: "#64748b",
-                }}>
-                  {stat.label}
-                </div>
+              </div>
+              <div style={{
+                fontSize: isMobile ? "24px" : "28px",
+                fontWeight: "700",
+                color: stat.color,
+                lineHeight: 1,
+              }}>
+                {stat.value}
+              </div>
+              <div style={{
+                fontSize: "11px",
+                color: "#64748b",
+                marginTop: "6px",
+                fontWeight: "500",
+              }}>
+                {stat.label}
               </div>
             </div>
           ))}
+        </div>
+      </div>
+
+      {/* Quick Actions Section */}
+      <div style={{
+        maxWidth: "1200px",
+        margin: "0 auto 30px",
+        padding: isMobile ? "0 16px" : "0 24px",
+      }}>
+        <div style={{
+          background: "white",
+          borderRadius: "20px",
+          padding: "20px",
+          boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+          border: "1px solid #e2e8f0",
+        }}>
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: "15px",
+          }}>
+            <div>
+              <h3 style={{
+                fontSize: "16px",
+                fontWeight: "600",
+                color: "#1e293b",
+                marginBottom: "4px",
+              }}>
+                Quick Actions
+              </h3>
+              <p style={{
+                fontSize: "13px",
+                color: "#64748b",
+              }}>
+                Manage your appointments and discover new services
+              </p>
+            </div>
+            <div style={{
+              display: "flex",
+              gap: "12px",
+            }}>
+              <button
+                onClick={handleViewAppointments}
+                style={{
+                  background: "linear-gradient(135deg, #667eea, #764ba2)",
+                  color: "white",
+                  border: "none",
+                  padding: "10px 20px",
+                  borderRadius: "10px",
+                  fontSize: "13px",
+                  fontWeight: "600",
+                  cursor: "pointer",
+                  transition: "all 0.2s ease",
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.transform = "translateY(-2px)"}
+                onMouseLeave={(e) => e.currentTarget.style.transform = "translateY(0)"}
+              >
+                View My Appointments
+              </button>
+              
+            </div>
+          </div>
         </div>
       </div>
 
@@ -346,7 +516,8 @@ function CustomerDashboard() {
             color: "#1e293b",
             margin: 0,
           }}>
-            Available Services {filteredShops.length > 0 && `(${filteredShops.length})`}
+            Discover Services
+            {filteredShops.length > 0 && ` (${filteredShops.length})`}
           </h2>
           
           <div style={{
@@ -358,15 +529,14 @@ function CustomerDashboard() {
               value={selectedLocation}
               onChange={(e) => setSelectedLocation(e.target.value)}
               style={{
-                padding: isMobile ? "10px 16px" : "12px 20px",
-                borderRadius: "30px",
+                padding: isMobile ? "8px 16px" : "10px 20px",
+                borderRadius: "10px",
                 border: "1px solid #e2e8f0",
                 background: "white",
-                fontSize: isMobile ? "14px" : "15px",
+                fontSize: "13px",
                 color: "#1e293b",
                 cursor: "pointer",
                 outline: "none",
-                flex: isMobile ? 1 : "none",
               }}
             >
               {locations.map(location => (
@@ -388,46 +558,43 @@ function CustomerDashboard() {
           <button
             onClick={() => setSelectedCategory('All Categories')}
             style={{
-              padding: '8px 18px',
+              padding: '8px 16px',
               border: selectedCategory === 'All Categories' ? 'none' : '1px solid #e2e8f0',
               background: selectedCategory === 'All Categories' 
                 ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' 
                 : 'white',
               color: selectedCategory === 'All Categories' ? 'white' : '#475569',
-              borderRadius: '30px',
+              borderRadius: '10px',
               cursor: 'pointer',
               fontSize: '13px',
-              fontWeight: '600',
-              transition: 'all 0.3s ease',
+              fontWeight: '500',
+              transition: 'all 0.2s ease',
               boxShadow: selectedCategory === 'All Categories' 
-                ? '0 4px 15px rgba(102, 126, 234, 0.3)' 
-                : '0 1px 3px rgba(0,0,0,0.05)',
+                ? '0 2px 8px rgba(102, 126, 234, 0.3)' 
+                : 'none',
             }}
           >
-            All Categories
+            All
           </button>
-          {categories.map((cat) => (
+          {categories.slice(0, isMobile ? 5 : 10).map((cat) => (
             <button
               key={cat}
               onClick={() => setSelectedCategory(cat)}
               style={{
-                padding: '8px 18px',
+                padding: '8px 16px',
                 border: selectedCategory === cat ? 'none' : '1px solid #e2e8f0',
                 background: selectedCategory === cat 
                   ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' 
                   : 'white',
                 color: selectedCategory === cat ? 'white' : '#475569',
-                borderRadius: '30px',
+                borderRadius: '10px',
                 cursor: 'pointer',
                 fontSize: '13px',
-                fontWeight: '600',
-                transition: 'all 0.3s ease',
-                boxShadow: selectedCategory === cat 
-                  ? '0 4px 15px rgba(102, 126, 234, 0.3)' 
-                  : '0 1px 3px rgba(0,0,0,0.05)',
+                fontWeight: '500',
+                transition: 'all 0.2s ease',
               }}
             >
-              {cat}
+              {cat.split(' ')[0]}
             </button>
           ))}
         </div>
@@ -441,7 +608,7 @@ function CustomerDashboard() {
           padding: '1rem', 
           background: '#fee2e2', 
           borderLeft: '4px solid #dc2626',
-          borderRadius: '10px', 
+          borderRadius: '12px', 
           color: '#dc2626',
           fontSize: '14px',
         }}>
@@ -460,14 +627,14 @@ function CustomerDashboard() {
             textAlign: "center",
             padding: "60px 20px",
             background: "white",
-            borderRadius: "30px",
-            boxShadow: "0 10px 30px rgba(0,0,0,0.05)",
+            borderRadius: "20px",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
           }}>
             <div style={{ fontSize: "48px", marginBottom: "20px" }}>🔍</div>
             <h3 style={{ fontSize: "20px", fontWeight: "600", color: "#1e293b", marginBottom: "8px" }}>
               No shops found
             </h3>
-            <p style={{ fontSize: "15px", color: "#64748b", marginBottom: "24px" }}>
+            <p style={{ fontSize: "14px", color: "#64748b", marginBottom: "24px" }}>
               Try adjusting your search or filter to find what you're looking for.
             </p>
             <button
@@ -480,12 +647,12 @@ function CustomerDashboard() {
                 background: "linear-gradient(135deg, #667eea, #764ba2)",
                 color: "white",
                 border: "none",
-                padding: "12px 30px",
-                borderRadius: "40px",
-                fontSize: "15px",
-                fontWeight: "600",
+                padding: "10px 24px",
+                borderRadius: "10px",
+                fontSize: "14px",
+                fontWeight: "500",
                 cursor: "pointer",
-                transition: "transform 0.2s ease",
+                transition: "all 0.2s ease",
               }}
               onMouseEnter={(e) => e.currentTarget.style.transform = "translateY(-2px)"}
               onMouseLeave={(e) => e.currentTarget.style.transform = "translateY(0)"}
@@ -501,7 +668,7 @@ function CustomerDashboard() {
               : isTablet 
                 ? "repeat(2, 1fr)" 
                 : "repeat(3, 1fr)",
-            gap: isMobile ? "20px" : "30px",
+            gap: isMobile ? "20px" : "24px",
           }}>
             {filteredShops.map((shop, index) => (
               <div
@@ -509,30 +676,30 @@ function CustomerDashboard() {
                 onClick={() => handleShopClick(shop.id)}
                 style={{
                   background: "white",
-                  borderRadius: "24px",
+                  borderRadius: "16px",
                   overflow: "hidden",
-                  boxShadow: "0 20px 40px -15px rgba(0,0,0,0.15)",
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
                   cursor: "pointer",
                   transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                  animation: `fadeInUp 0.5s ease forwards ${index * 0.05}s`,
+                  border: "1px solid #e2e8f0",
                   opacity: 0,
-                  animation: `fadeInUp 0.6s ease forwards ${index * 0.05}s`,
-                  border: shop.isActive !== false ? "1px solid rgba(102, 126, 234, 0.2)" : "2px solid #f44336",
-                  position: "relative",
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = "translateY(-10px)";
-                  e.currentTarget.style.boxShadow = "0 30px 60px -20px rgba(0,0,0,0.3)";
+                  e.currentTarget.style.transform = "translateY(-4px)";
+                  e.currentTarget.style.boxShadow = "0 12px 24px -8px rgba(0,0,0,0.15)";
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.transform = "translateY(0)";
-                  e.currentTarget.style.boxShadow = "0 20px 40px -15px rgba(0,0,0,0.15)";
+                  e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.05)";
                 }}
               >
                 {/* Image Section */}
                 <div style={{
                   position: "relative",
-                  height: isMobile ? "200px" : "220px",
+                  height: isMobile ? "180px" : "200px",
                   overflow: "hidden",
+                  background: "linear-gradient(135deg, #667eea, #764ba2)",
                 }}>
                   {shop.image_url ? (
                     <img
@@ -542,7 +709,7 @@ function CustomerDashboard() {
                         width: "100%",
                         height: "100%",
                         objectFit: "cover",
-                        transition: "transform 0.6s ease",
+                        transition: "transform 0.4s ease",
                       }}
                       onMouseEnter={(e) => e.currentTarget.style.transform = "scale(1.05)"}
                       onMouseLeave={(e) => e.currentTarget.style.transform = "scale(1)"}
@@ -551,176 +718,127 @@ function CustomerDashboard() {
                     <div style={{
                       width: "100%",
                       height: "100%",
-                      background: "linear-gradient(135deg, #667eea, #764ba2)",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
                       fontSize: "48px",
+                      color: "white",
                     }}>
                       {shop.name?.charAt(0) || '🏪'}
                     </div>
                   )}
-                  <div style={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    background: "linear-gradient(to bottom, transparent 40%, rgba(0,0,0,0.8) 100%)",
-                  }} />
                   
-                  {shop.isActive === false && (
+                  {/* Status Badge */}
+                  {shop.is_open === false && (
                     <div style={{
                       position: "absolute",
-                      top: "16px",
-                      right: "16px",
-                      background: "#f44336",
+                      top: "12px",
+                      right: "12px",
+                      background: "#ef4444",
                       color: "white",
-                      padding: "6px 14px",
-                      borderRadius: "30px",
-                      fontSize: "12px",
+                      padding: "4px 12px",
+                      borderRadius: "20px",
+                      fontSize: "11px",
                       fontWeight: "600",
                       zIndex: 2,
                     }}>
-                      ⏸️ Paused
+                      Closed
                     </div>
                   )}
                   
+                  {/* Rating Badge */}
                   <div style={{
                     position: "absolute",
-                    bottom: "16px",
-                    left: "16px",
+                    bottom: "12px",
+                    left: "12px",
                     background: "rgba(0,0,0,0.7)",
-                    backdropFilter: "blur(5px)",
+                    backdropFilter: "blur(4px)",
                     color: "white",
-                    padding: "6px 12px",
-                    borderRadius: "30px",
-                    fontSize: "13px",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "6px",
-                    zIndex: 2,
-                  }}>
-                    <StarIcon filled={true} />
-                    <span style={{ fontWeight: "600" }}>{shop.rating || 4.0}</span>
-                  </div>
-
-                  <div style={{
-                    position: "absolute",
-                    bottom: "16px",
-                    right: "16px",
-                    background: "rgba(255,255,255,0.9)",
-                    backdropFilter: "blur(5px)",
-                    color: "#1e293b",
-                    padding: "6px 12px",
-                    borderRadius: "30px",
+                    padding: "4px 10px",
+                    borderRadius: "20px",
                     fontSize: "12px",
                     display: "flex",
                     alignItems: "center",
                     gap: "4px",
                     zIndex: 2,
                   }}>
-                    <LocationIcon />
-                    <span>{shop.address || 'Unknown location'}</span>
+                    <StarIcon filled={true} />
+                    <span>{shop.rating || '4.5'}</span>
                   </div>
                 </div>
 
                 {/* Content Section */}
                 <div style={{
-                  padding: isMobile ? "20px" : "24px",
+                  padding: isMobile ? "16px" : "20px",
                 }}>
-                  <div style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "10px",
-                    marginBottom: "16px",
+                  <h3 style={{
+                    fontSize: isMobile ? "16px" : "18px",
+                    fontWeight: "700",
+                    margin: "0 0 8px 0",
+                    color: "#1e293b",
+                    lineHeight: 1.3,
                   }}>
-                    <h3 style={{
-                      fontSize: isMobile ? "18px" : "20px",
-                      fontWeight: "700",
-                      margin: 0,
-                      color: "#1e293b",
-                    }}>
-                      {shop.name}
-                    </h3>
-                    <p style={{
-                      fontSize: "14px",
-                      color: "#475569",
-                      lineHeight: 1.45,
-                      margin: 0,
-                      minHeight: "46px",
-                    }}>
-                      {shop.description || "No description provided."}
-                    </p>
-                    <div style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "8px",
-                      fontSize: "13px",
-                      color: "#64748b",
-                    }}>
-                      <LocationIcon />
-                      <span>{shop.address || "Address unavailable"}</span>
-                    </div>
-                  </div>
-
-                  {/* Action Button */}
+                    {shop.name}
+                  </h3>
+                  
+                  <p style={{
+                    fontSize: "13px",
+                    color: "#64748b",
+                    lineHeight: 1.5,
+                    margin: "0 0 12px 0",
+                    display: "-webkit-box",
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: "vertical",
+                    overflow: "hidden",
+                  }}>
+                    {shop.description || "No description provided."}
+                  </p>
+                  
                   <div style={{
                     display: "flex",
                     alignItems: "center",
-                    justifyContent: "space-between",
-                    borderTop: "1px solid #e2e8f0",
-                    paddingTop: "16px",
+                    gap: "8px",
+                    fontSize: "12px",
+                    color: "#64748b",
+                    marginBottom: "12px",
                   }}>
-                    <div style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "8px",
-                    }}>
-                      <div style={{
-                        width: "32px",
-                        height: "32px",
-                        borderRadius: "50%",
-                        background: "#25D36615",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}>
-                        <PhoneIcon />
-                      </div>
-                      <span style={{
-                        fontSize: "13px",
-                        color: "#475569",
-                        fontWeight: "500",
-                      }}>
-                        {shop.phone || "Contact shop"}
-                      </span>
-                    </div>
-                    
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleShopClick(shop.id);
-                      }}
-                      style={{
-                        background: shop.isActive !== false 
-                          ? "linear-gradient(135deg, #25D366 0%, #128C7E 100%)"
-                          : "#cbd5e1",
-                        color: "white",
-                        border: "none",
-                        padding: isMobile ? "10px 20px" : "12px 24px",
-                        borderRadius: "40px",
-                        fontSize: "14px",
-                        fontWeight: "600",
-                        cursor: shop.isActive !== false ? "pointer" : "not-allowed",
-                        transition: "all 0.3s ease",
-                        boxShadow: shop.isActive !== false ? "0 8px 20px rgba(37, 211, 102, 0.3)" : "none",
-                      }}
-                      disabled={shop.isActive === false}
-                    >
-                      Book Now →
-                    </button>
+                    <LocationIcon />
+                    <span style={{ flex: 1 }}>{shop.address || "Address unavailable"}</span>
                   </div>
+
+                  {/* Action Button */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleShopClick(shop.id);
+                    }}
+                    style={{
+                      width: "100%",
+                      background: shop.is_open !== false 
+                        ? "linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
+                        : "#cbd5e1",
+                      color: "white",
+                      border: "none",
+                      padding: "10px",
+                      borderRadius: "10px",
+                      fontSize: "13px",
+                      fontWeight: "600",
+                      cursor: shop.is_open !== false ? "pointer" : "not-allowed",
+                      transition: "all 0.2s ease",
+                      marginTop: "8px",
+                    }}
+                    disabled={shop.is_open === false}
+                    onMouseEnter={(e) => {
+                      if (shop.is_open !== false) {
+                        e.currentTarget.style.transform = "translateY(-2px)";
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = "translateY(0)";
+                    }}
+                  >
+                    {shop.is_open !== false ? 'Book Appointment →' : 'Currently Closed'}
+                  </button>
                 </div>
               </div>
             ))}
@@ -728,12 +846,21 @@ function CustomerDashboard() {
         )}
       </div>
 
+      {/* Appointments Dialog */}
+      <AppointmentsDialog
+        open={dialogOpen}
+        onClose={() => setDialogOpen(false)}
+        appointments={myAppointments}
+        loading={dialogLoading}
+        title="My Appointments"
+      />
+
       <style>
         {`
           @keyframes fadeInUp {
             from {
               opacity: 0;
-              transform: translateY(30px);
+              transform: translateY(20px);
             }
             to {
               opacity: 1;
