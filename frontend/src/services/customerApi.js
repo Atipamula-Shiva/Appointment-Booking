@@ -1,4 +1,4 @@
-import api from './api';
+import api from '../pages/api';
 
 class CustomerApiService {
   /**
@@ -44,27 +44,6 @@ class CustomerApiService {
   }
 
   /**
-   * Get customer's own orders
-   * GET /orders/my
-   */
-  async getMyOrders() {
-    try {
-      const response = await api.get('/orders/my');
-      return {
-        success: true,
-        data: response.data,
-      };
-    } catch (error) {
-      const errorMessage =
-        error.response?.data?.detail || error.response?.data?.message || 'Failed to fetch orders';
-      return {
-        success: false,
-        error: errorMessage,
-      };
-    }
-  }
-
-  /**
    * Place a new order
    * POST /orders
    */
@@ -78,6 +57,27 @@ class CustomerApiService {
     } catch (error) {
       const errorMessage =
         error.response?.data?.detail || error.response?.data?.message || 'Failed to place order';
+      return {
+        success: false,
+        error: errorMessage,
+      };
+    }
+  }
+
+  /**
+   * Get customer's own bookings
+   * GET /bookings/my
+   */
+  async getMyBookings() {
+    try {
+      const response = await api.get('/bookings/my');
+      return {
+        success: true,
+        data: response.data,
+      };
+    } catch (error) {
+      const errorMessage =
+        error.response?.data?.detail || error.response?.data?.message || 'Failed to fetch bookings';
       return {
         success: false,
         error: errorMessage,

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import useSnackbar from "../common/Snackbar";
-import api from "../services/api";
+import api from "./api";
 
 const ForgotPasswordPage = () => {
   const navigate = useNavigate();
@@ -370,6 +370,20 @@ const ForgotPasswordPage = () => {
               onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
             >
               Back to Login
+            </Link>
+            {' | '}
+            <Link
+              to="/forgot-username"
+              style={{
+                color: "#667eea",
+                textDecoration: "none",
+                fontWeight: "600",
+                transition: "opacity 0.2s ease",
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.8")}
+              onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
+            >
+              Forgot Username
             </Link>
           </p>
         </div>

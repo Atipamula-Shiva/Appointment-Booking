@@ -253,6 +253,21 @@ const LoginPage = () => {
               >
                 Forgot Password?
               </Link>
+              {' | '}
+              <Link
+                to="/forgot-username"
+                style={{
+                  fontSize: "12px",
+                  color: "#667eea",
+                  textDecoration: "none",
+                  fontWeight: "500",
+                  transition: "opacity 0.2s ease",
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.8")}
+                onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
+              >
+                Forgot Username?
+              </Link>
             </div>
           </form>
 
