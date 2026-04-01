@@ -441,3 +441,44 @@ def search(
         "shops": result,          # ← sorted by distance, each with their services
         "categories": categories  # ← for filter chips
     }
+
+
+# ── Shop details –  ───────────────────────
+
+@router.get("/shops/{shop_id}", response_model=dict, summary="Get shop details with services")
+def get_shop_details(
+    shop_id: UUID,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user)
+):
+    shop = db.query(Shop).filter(Shop.id == shop_id, Shop.is_open == True).first()
+    if not shop:
+        raise HTTPException(status_code=404, detail="Shop not found or closed")
+
+    services = db.query(Service).filter(
+        Service.shop_id == shop_id,
+        Service.is_available == True
+    ).all()
+
+    return {
+        "id": str(shop.id),
+        "name": shop.name,
+        "description": shop.description,
+        "address": shop.address,
+        "phone": shop.phone,
+        "image_url": shop.image_url,
+        "latitude": shop.latitude,
+        "longitude": shop.longitude,
+        "services": [
+            {
+                "service_id": str(s.id),
+                "name": s.name,
+                "description": s.description,
+                "price": s.price,
+                "duration_minutes": s.duration_minutes,
+                "image_url": s.image_url,
+                "category_id": str(s.category_id) if s.category_id else None,
+            }
+            for s in services
+        ]
+    }
