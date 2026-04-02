@@ -78,6 +78,9 @@ class BookingCreate(BaseModel):
     slot_id: UUID
     service_id: UUID
     notes: Optional[str] = None
+    date: date
+    start_time: time
+    end_time: time
 
 
 class BookingStatusUpdate(BaseModel):
@@ -92,5 +95,5 @@ class BookingResponse(BaseModel):
     status: str
     notes: Optional[str]
     created_at: datetime
-
+    date : datetime
     model_config = {"from_attributes": True}
