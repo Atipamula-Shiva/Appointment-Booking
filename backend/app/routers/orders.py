@@ -482,3 +482,38 @@ def get_shop_details(
             for s in services
         ]
     }
+
+# ── Nearby shops (customer uses this) ────────────────────
+
+@router.get("/nearby", summary="Get nearby shops sorted by distance")
+def get_nearby_shops(
+    lat: float = Query(..., description="Customer latitude"),
+    lng: float = Query(..., description="Customer longitude"),
+    radius_km: float = Query(10.0, description="Search radius in km"),
+    db: Session = Depends(get_db),
+):
+    shops = db.query(Shop).filter(
+        Shop.is_open == True,
+        Shop.latitude.isnot(None),
+        Shop.longitude.isnot(None)
+    ).all()
+
+    result = []
+    for shop in shops:
+        distance = haversine_distance(lat, lng, shop.latitude, shop.longitude)
+        if distance <= radius_km:
+            result.append({
+                "id": str(shop.id),
+                "name": shop.name,
+                "description": shop.description,
+                "address": shop.address,
+                "phone": shop.phone,
+                "image_url": shop.image_url,
+                "is_open": shop.is_open,
+                "latitude": shop.latitude,
+                "longitude": shop.longitude,
+                "distance_km": round(distance, 2)
+            })
+
+    result.sort(key=lambda x: x["distance_km"])
+    return {"total": len(result), "shops": result}
