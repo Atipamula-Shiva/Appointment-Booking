@@ -76,6 +76,7 @@ class SlotResponse(BaseModel):
 
 class BookingCreate(BaseModel):
     slot_id: UUID
+    service_id: UUID
     notes: Optional[str] = None
 
 
