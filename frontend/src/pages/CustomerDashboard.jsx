@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import useSnackbar from '../common/Snackbar';
 import customerApi from '../services/customerApi';
-import AppointmentsDialog from '../components/AppointmentsDialog';
+// import AppointmentsDialog from '../components/AppointmentsDialog';
 
 const StarIcon = ({ filled = true }) => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill={filled ? '#FFD700' : '#E2E8F0'} xmlns="http://www.w3.org/2000/svg">
@@ -281,78 +281,9 @@ function CustomerDashboard() {
           background: "rgba(255,255,255,0.1)",
           animation: "float1 20s ease-in-out infinite",
         }} />
-        <div style={{
-          position: "absolute",
-          bottom: "-80px",
-          left: "-80px",
-          width: "300px",
-          height: "300px",
-          borderRadius: "50%",
-          background: "rgba(255,255,255,0.05)",
-          animation: "float2 25s ease-in-out infinite",
-        }} />
+  
         
-        <div style={{
-          maxWidth: "1200px",
-          margin: "0 auto",
-          position: "relative",
-          zIndex: 1,
-        }}>
-          <h1 style={{
-            fontSize: isMobile ? "28px" : isTablet ? "38px" : "48px",
-            fontWeight: "800",
-            color: "white",
-            margin: "0 0 12px 0",
-            lineHeight: 1.2,
-            textShadow: "0 2px 10px rgba(0,0,0,0.1)",
-            textAlign: "center",
-          }}>
-            Welcome back, {user?.name?.split(' ')[0] || 'Customer'}! 👋
-          </h1>
-          <p style={{
-            fontSize: isMobile ? "14px" : "16px",
-            color: "rgba(255,255,255,0.95)",
-            maxWidth: "600px",
-            margin: "0 auto 32px",
-            textAlign: "center",
-            lineHeight: 1.6,
-          }}>
-            Discover amazing services and book appointments in seconds
-          </p>
 
-          <div style={{
-            maxWidth: "600px",
-            margin: "0 auto",
-            position: "relative",
-          }}>
-            <div style={{
-              position: "absolute",
-              left: "16px",
-              top: "50%",
-              transform: "translateY(-50%)",
-              zIndex: 2,
-            }}>
-              <SearchIcon />
-            </div>
-            <input
-              type="text"
-              placeholder="Search shops, services, or locations..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              style={{
-                width: "100%",
-                padding: isMobile ? "14px 16px 14px 48px" : "16px 20px 16px 52px",
-                border: "none",
-                borderRadius: "50px",
-                fontSize: isMobile ? "14px" : "15px",
-                boxShadow: "0 10px 30px rgba(0,0,0,0.2)",
-                outline: "none",
-                boxSizing: "border-box",
-              }}
-              autoFocus={false}
-            />
-          </div>
-        </div>
       </div>
 
       {/* Stats Section - Enhanced with Appointment Statistics */}
@@ -845,15 +776,6 @@ function CustomerDashboard() {
           </div>
         )}
       </div>
-
-      {/* Appointments Dialog */}
-      <AppointmentsDialog
-        open={dialogOpen}
-        onClose={() => setDialogOpen(false)}
-        appointments={myAppointments}
-        loading={dialogLoading}
-        title="My Appointments"
-      />
 
       <style>
         {`

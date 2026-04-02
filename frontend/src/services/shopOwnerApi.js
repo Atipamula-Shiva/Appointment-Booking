@@ -1,255 +1,172 @@
 import api from '../pages/api';
 
 class ShopOwnerApiService {
-  /**
-   * Get all shops for shop owner
-   * GET /shops
-   */
+  // ─── Shop ─────────────────────────────────────────────────────────────────
+
   async getMyShops() {
     try {
       const response = await api.get('/shops');
-      return {
-        success: true,
-        data: response.data,
-      };
+      return { success: true, data: response.data };
     } catch (error) {
-      const errorMessage =
-        error.response?.data?.detail || error.response?.data?.message || 'Failed to fetch shops';
-      return {
-        success: false,
-        error: errorMessage,
-      };
+      return { success: false, error: error.response?.data?.detail || error.response?.data?.message || 'Failed to fetch shops' };
     }
   }
 
-  /**
-   * Get shop owner's shop details (single shop - legacy)
-   * GET /shop
-   */
   async getMyShop() {
     try {
       const response = await api.get('/shop');
-      return {
-        success: true,
-        data: response.data,
-      };
+      return { success: true, data: response.data };
     } catch (error) {
-      const errorMessage =
-        error.response?.data?.detail || error.response?.data?.message || 'Failed to fetch shop details';
-      return {
-        success: false,
-        error: errorMessage,
-      };
+      return { success: false, error: error.response?.data?.detail || error.response?.data?.message || 'Failed to fetch shop details' };
     }
   }
 
-  /**
-   * Create a new shop
-   * POST /shop
-   */
   async createShop(shopData) {
     try {
       const response = await api.post('/shop', shopData);
-      return {
-        success: true,
-        data: response.data,
-      };
+      return { success: true, data: response.data };
     } catch (error) {
-      const errorMessage =
-        error.response?.data?.detail || error.response?.data?.message || 'Failed to create shop';
-      return {
-        success: false,
-        error: errorMessage,
-      };
+      return { success: false, error: error.response?.data?.detail || error.response?.data?.message || 'Failed to create shop' };
     }
   }
 
-  /**
-   * Update shop details
-   * PATCH /shop/{id}
-   */
   async updateShop(shopId, shopData) {
     try {
       const response = await api.patch(`/shop/${shopId}`, shopData);
-      return {
-        success: true,
-        data: response.data,
-      };
+      return { success: true, data: response.data };
     } catch (error) {
-      const errorMessage =
-        error.response?.data?.detail || error.response?.data?.message || 'Failed to update shop';
-      return {
-        success: false,
-        error: errorMessage,
-      };
+      return { success: false, error: error.response?.data?.detail || error.response?.data?.message || 'Failed to update shop' };
     }
   }
 
-  /**
-   * Get all services for a specific shop
-   * GET /shops/{shopId}/services
-   */
-  async getServices(shopId) {
+  // ─── Services ─────────────────────────────────────────────────────────────
+
+  async getServices() {
     try {
-      const response = await api.get(`/shops/${shopId}/services`);
-      return {
-        success: true,
-        data: response.data,
-      };
+      const response = await api.get('/shop/services');
+      return { success: true, data: response.data };
     } catch (error) {
-      const errorMessage =
-        error.response?.data?.detail || error.response?.data?.message || 'Failed to fetch services';
-      return {
-        success: false,
-        error: errorMessage,
-      };
+      return { success: false, error: error.response?.data?.detail || error.response?.data?.message || 'Failed to fetch services' };
     }
   }
 
-  /**
-   * Add a new service to a shop
-   * POST /shops/{shopId}/services
-   */
-  async addService(shopId, serviceData) {
+  async addService(serviceData) {
     try {
-      const response = await api.post(`/shops/${shopId}/services`, serviceData);
-      return {
-        success: true,
-        data: response.data,
-      };
+      const response = await api.post('/shop/services', serviceData);
+      return { success: true, data: response.data };
     } catch (error) {
-      const errorMessage =
-        error.response?.data?.detail || error.response?.data?.message || 'Failed to add service';
-      return {
-        success: false,
-        error: errorMessage,
-      };
+      return { success: false, error: error.response?.data?.detail || error.response?.data?.message || 'Failed to add service' };
     }
   }
 
-  /**
-   * Update a service
-   * PATCH /shops/{shopId}/services/{serviceId}
-   */
-  async updateService(shopId, serviceId, serviceData) {
+  async updateService(serviceId, serviceData) {
     try {
-      const response = await api.patch(`/shops/${shopId}/services/${serviceId}`, serviceData);
-      return {
-        success: true,
-        data: response.data,
-      };
+      const response = await api.patch(`/shop/services/${serviceId}`, serviceData);
+      return { success: true, data: response.data };
     } catch (error) {
-      const errorMessage =
-        error.response?.data?.detail || error.response?.data?.message || 'Failed to update service';
-      return {
-        success: false,
-        error: errorMessage,
-      };
+      return { success: false, error: error.response?.data?.detail || error.response?.data?.message || 'Failed to update service' };
     }
   }
 
-  /**
-   * Delete a service
-   * DELETE /shops/{shopId}/services/{serviceId}
-   */
-  async deleteService(shopId, serviceId) {
+  async deleteService(serviceId) {
     try {
-      const response = await api.delete(`/shops/${shopId}/services/${serviceId}`);
-      return {
-        success: true,
-        data: response.data,
-      };
+      const response = await api.delete(`/shop/services/${serviceId}`);
+      return { success: true, data: response.data };
     } catch (error) {
-      const errorMessage =
-        error.response?.data?.detail || error.response?.data?.message || 'Failed to delete service';
-      return {
-        success: false,
-        error: errorMessage,
-      };
+      return { success: false, error: error.response?.data?.detail || error.response?.data?.message || 'Failed to delete service' };
+    }
+  }
+
+  // ─── Slots ────────────────────────────────────────────────────────────────
+
+  /**
+   * Get all slots for the shop owner's shop
+   * GET /shop/slots
+   */
+  async getSlots() {
+    try {
+      const response = await api.get('/shop/slots');
+      return { success: true, data: response.data };
+    } catch (error) {
+      return { success: false, error: error.response?.data?.detail || error.response?.data?.message || 'Failed to fetch slots' };
     }
   }
 
   /**
-   * Get all bookings for a specific shop
-   * GET /shops/{shopId}/bookings
+   * Create a new slot
+   * POST /shop/slots
+   * @param {Object} slotData - { service_id, date, start_time, end_time, capacity }
    */
+  async createSlot(slotData) {
+    try {
+      const response = await api.post('/shop/slots', slotData);
+      return { success: true, data: response.data };
+    } catch (error) {
+      return { success: false, error: error.response?.data?.detail || error.response?.data?.message || 'Failed to create slot' };
+    }
+  }
+
+  /**
+   * Delete a slot
+   * DELETE /shop/slots/{slotId}
+   */
+  async deleteSlot(slotId) {
+    try {
+      const response = await api.delete(`/shop/slots/${slotId}`);
+      return { success: true, data: response.data };
+    } catch (error) {
+      return { success: false, error: error.response?.data?.detail || error.response?.data?.message || 'Failed to delete slot' };
+    }
+  }
+
+  // ─── Bookings ─────────────────────────────────────────────────────────────
+
   async getBookings(shopId) {
     try {
       const response = await api.get(`/shops/${shopId}/bookings`);
-      return {
-        success: true,
-        data: response.data,
-      };
+      return { success: true, data: response.data };
     } catch (error) {
-      const errorMessage =
-        error.response?.data?.detail || error.response?.data?.message || 'Failed to fetch bookings';
-      return {
-        success: false,
-        error: errorMessage,
-      };
+      return { success: false, error: error.response?.data?.detail || error.response?.data?.message || 'Failed to fetch bookings' };
     }
   }
 
-  /**
-   * Update booking status
-   * PATCH /bookings/{id}
-   */
   async updateBookingStatus(bookingId, status) {
     try {
       const response = await api.patch(`/bookings/${bookingId}`, { status });
-      return {
-        success: true,
-        data: response.data,
-      };
+      return { success: true, data: response.data };
     } catch (error) {
-      const errorMessage =
-        error.response?.data?.detail || error.response?.data?.message || 'Failed to update booking status';
-      return {
-        success: false,
-        error: errorMessage,
-      };
+      return { success: false, error: error.response?.data?.detail || error.response?.data?.message || 'Failed to update booking status' };
     }
   }
 
-  /**
-   * Get all incoming orders for the shop owner (legacy)
-   * GET /shop/orders
-   */
+  // ─── Categories ───────────────────────────────────────────────────────────
+
+  async getCategories() {
+    try {
+      const response = await api.get('/categories');
+      return { success: true, data: response.data };
+    } catch (error) {
+      return { success: false, error: error.response?.data?.detail || error.response?.data?.message || 'Failed to fetch categories' };
+    }
+  }
+
+  // ─── Orders (legacy) ─────────────────────────────────────────────────────
+
   async getIncomingOrders() {
     try {
       const response = await api.get('/shop/orders');
-      return {
-        success: true,
-        data: response.data,
-      };
+      return { success: true, data: response.data };
     } catch (error) {
-      const errorMessage =
-        error.response?.data?.detail || error.response?.data?.message || 'Failed to fetch orders';
-      return {
-        success: false,
-        error: errorMessage,
-      };
+      return { success: false, error: error.response?.data?.detail || error.response?.data?.message || 'Failed to fetch orders' };
     }
   }
 
-  /**
-   * Update order status (legacy)
-   * PATCH /shop/orders/{id}
-   */
   async updateOrderStatus(orderId, status) {
     try {
       const response = await api.patch(`/shop/orders/${orderId}`, { status });
-      return {
-        success: true,
-        data: response.data,
-      };
+      return { success: true, data: response.data };
     } catch (error) {
-      const errorMessage =
-        error.response?.data?.detail || error.response?.data?.message || 'Failed to update order status';
-      return {
-        success: false,
-        error: errorMessage,
-      };
+      return { success: false, error: error.response?.data?.detail || error.response?.data?.message || 'Failed to update order status' };
     }
   }
 }
