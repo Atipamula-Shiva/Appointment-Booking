@@ -339,7 +339,7 @@ def create_slot(
 
 @router.get("/slots", response_model=list[SlotResponse], summary="List my slots")
 def list_slots(
-    current_user: User,
+    current_user: User = Depends(require_shop_owner),
     db: Session = Depends(get_db),
 ):
     shop = current_user.shop
