@@ -195,7 +195,7 @@ def get_my_shop(
     return current_user.shop
 
 
-@router.patch("", response_model=ShopResponse, summary="Update shop details")
+@router.patch("/shop_update", response_model=ShopResponse, summary="Update shop details")
 def update_shop(
     payload: ShopUpdate,
     current_user: User = Depends(require_shop_owner),
