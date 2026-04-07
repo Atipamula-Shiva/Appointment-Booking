@@ -2,7 +2,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
-
+from datetime import date as DateType
 from app.database import get_db
 from app.dependencies import require_customer, require_shop_owner, get_current_user
 from app.models import Booking, BookingStatus, Category, MenuItem, Order, OrderItem, OrderStatus, Service, Shop, TimeSlot, User
@@ -221,8 +221,14 @@ def view_shop_menu(shop_id: UUID, db: Session = Depends(get_db), _: User = Depen
 def get_slots(
     service_id: UUID,
     date: str = Query(..., description="Date in YYYY-MM-DD format"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
 ):
+    try:
+        parsed_date = DateType.fromisoformat(date)   # ← parse string to date
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Date must be YYYY-MM-DD format")
+    
     slots = db.query(TimeSlot).filter(
         TimeSlot.service_id == service_id,
         TimeSlot.date == date,

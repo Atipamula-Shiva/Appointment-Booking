@@ -250,28 +250,53 @@ class OTPStore(Base):
 # Shop
 # ─────────────────────────────────────────────
 
+# class Shop(Base):
+#     __tablename__ = "shops"
+#     __table_args__ = {"schema": "abc"}
+
+#     id          = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+#     owner_id    = Column(UUID(as_uuid=True), ForeignKey("abc.users.id", ondelete="CASCADE"), nullable=False, unique=True)
+#     name        = Column(String(150), nullable=False)
+#     description = Column(Text, nullable=True)
+#     address     = Column(Text, nullable=True)
+#     phone       = Column(String(20), nullable=True)
+#     image_url   = Column(String(500), nullable=True)
+#     is_open     = Column(Boolean, default=True)
+#     created_at  = Column(DateTime, server_default=func.now())
+#     updated_at  = Column(DateTime, server_default=func.now(), onupdate=func.now())
+#     latitude    = Column(Float, nullable=True)  
+#     longitude   = Column(Float, nullable=True) 
+
+#     owner      = relationship("User", back_populates="shop")
+#     menu_items = relationship("MenuItem", back_populates="shop", cascade="all, delete-orphan")
+#     orders     = relationship("Order", back_populates="shop")
+#     services   = relationship("Service", back_populates="shop", cascade="all, delete-orphan") 
+
 class Shop(Base):
     __tablename__ = "shops"
     __table_args__ = {"schema": "abc"}
 
     id          = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    owner_id    = Column(UUID(as_uuid=True), ForeignKey("abc.users.id", ondelete="CASCADE"), nullable=False, unique=True)
+    owner_id    = Column(UUID(as_uuid=True), ForeignKey("abc.users.id"), nullable=False, unique=True)
     name        = Column(String(150), nullable=False)
     description = Column(Text, nullable=True)
     address     = Column(Text, nullable=True)
     phone       = Column(String(20), nullable=True)
     image_url   = Column(String(500), nullable=True)
     is_open     = Column(Boolean, default=True)
+    latitude    = Column(Float, nullable=True)
+    longitude   = Column(Float, nullable=True)
+    open_time   = Column(String(8), nullable=True)   # "09:00:00"
+    close_time  = Column(String(8), nullable=True)   # "16:00:00"
     created_at  = Column(DateTime, server_default=func.now())
     updated_at  = Column(DateTime, server_default=func.now(), onupdate=func.now())
-    latitude    = Column(Float, nullable=True)  
-    longitude   = Column(Float, nullable=True) 
 
-    owner      = relationship("User", back_populates="shop")
+    owner      = relationship("User",     back_populates="shop")
     menu_items = relationship("MenuItem", back_populates="shop", cascade="all, delete-orphan")
-    orders     = relationship("Order", back_populates="shop")
-    services   = relationship("Service", back_populates="shop", cascade="all, delete-orphan") 
-
+    orders     = relationship("Order",    back_populates="shop")
+    services   = relationship("Service",  back_populates="shop", cascade="all, delete-orphan")
+    slots      = relationship("TimeSlot", back_populates="shop", cascade="all, delete-orphan")
+    
 # ─────────────────────────────────────────────
 # Menu Item
 # ─────────────────────────────────────────────

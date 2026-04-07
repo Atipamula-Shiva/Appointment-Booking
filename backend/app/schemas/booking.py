@@ -1,7 +1,7 @@
 from uuid import UUID
 from datetime import date, time, datetime
 from typing import Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 
 class CategoryCreate(BaseModel):
@@ -52,12 +52,20 @@ class ServiceResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+from datetime import date as DateType
+
 class SlotCreate(BaseModel):
     service_id: UUID
-    date: date
-    start_time: time
-    end_time: time
-    capacity: int = 1
+    date: str        # "2026-04-07"
+
+    @field_validator("date")
+    @classmethod
+    def check_date(cls, v):
+        try:
+            DateType.fromisoformat(v)
+        except ValueError:
+            raise ValueError("Date must be YYYY-MM-DD format")
+        return v
 
 
 class SlotResponse(BaseModel):

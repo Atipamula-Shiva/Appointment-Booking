@@ -5,14 +5,54 @@ from pydantic import BaseModel
 
 # ── Shop ─────────────────────────────────────────────────
 
+# class ShopCreate(BaseModel):
+#     name: str
+#     description: str | None = None
+#     address: str | None = None
+#     phone: str | None = None
+#     image_url: str | None = None
+#     latitude: float | None = None     
+#     longitude: float | None = None
+
+
+
+# class ShopUpdate(BaseModel):
+#     name: str | None = None
+#     description: str | None = None
+#     address: str | None = None
+#     phone: str | None = None
+#     image_url: str | None = None
+#     is_open: bool | None = None
+#     latitude: float | None = None      
+#     longitude: float | None = None
+
+
+# class ShopResponse(BaseModel):
+#     id: UUID
+#     owner_id: UUID
+#     name: str
+#     description: str | None
+#     address: str | None
+#     phone: str | None
+#     image_url: str | None
+#     is_open: bool
+#     created_at: datetime
+#     latitude: float | None = None      
+#     longitude: float | None = None
+
+#     model_config = {"from_attributes": True}
+
 class ShopCreate(BaseModel):
     name: str
     description: str | None = None
     address: str | None = None
     phone: str | None = None
     image_url: str | None = None
-    latitude: float | None = None     
+    latitude: float | None = None
     longitude: float | None = None
+    open_time: str | None = None    # "09:00"
+    close_time: str | None = None   # "16:00"
+
 
 class ShopUpdate(BaseModel):
     name: str | None = None
@@ -21,8 +61,10 @@ class ShopUpdate(BaseModel):
     phone: str | None = None
     image_url: str | None = None
     is_open: bool | None = None
-    latitude: float | None = None      
+    latitude: float | None = None
     longitude: float | None = None
+    open_time: str | None = None
+    close_time: str | None = None
 
 
 class ShopResponse(BaseModel):
@@ -34,12 +76,13 @@ class ShopResponse(BaseModel):
     phone: str | None
     image_url: str | None
     is_open: bool
+    latitude: float | None
+    longitude: float | None
+    open_time: str | None
+    close_time: str | None
     created_at: datetime
-    latitude: float | None = None      
-    longitude: float | None = None
 
     model_config = {"from_attributes": True}
-
 
 # ── Menu Item ─────────────────────────────────────────────
 
