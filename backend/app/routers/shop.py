@@ -321,7 +321,97 @@ def update_service(
 
 # ── Slot management ───────────────────────────────────────
 
-@router.post("/slots", response_model=SlotResponse, status_code=201, summary="Create slot")
+# @router.post("/slots", response_model=SlotResponse, status_code=201, summary="Create slot")
+# def create_slot(
+#     payload: SlotCreate,
+#     current_user: User = Depends(require_shop_owner),
+#     db: Session = Depends(get_db),
+# ):
+#     shop = current_user.shop
+#     if not shop:
+#         raise HTTPException(status_code=404, detail="Create your shop first")
+#     slot = TimeSlot(shop_id=shop.id, **payload.model_dump())
+#     db.add(slot)
+#     db.commit()
+#     db.refresh(slot)
+#     return slot
+
+from datetime import datetime, timedelta, date as DateType
+from app.models import Service, TimeSlot, Shop
+
+# @router.post("/slots", status_code=201, summary="Auto-generate slots for a service on a date")
+# def create_slot(
+#     payload: SlotCreate,
+#     current_user: User = Depends(require_shop_owner),
+#     db: Session = Depends(get_db),
+# ):
+#     shop = current_user.shop
+#     if not shop:
+#         raise HTTPException(status_code=404, detail="Create your shop first")
+
+#     if not shop.open_time or not shop.close_time:
+#         raise HTTPException(
+#             status_code=400,
+#             detail="Set shop open_time and close_time first via PATCH /shop"
+#         )
+
+#     service = db.query(Service).filter(
+#         Service.id == payload.service_id,
+#         Service.shop_id == shop.id
+#     ).first()
+#     if not service:
+#         raise HTTPException(status_code=404, detail="Service not found")
+
+#     # Delete existing slots for this service+date (allow regeneration)
+#     db.query(TimeSlot).filter(
+#         TimeSlot.service_id == payload.service_id,
+#         TimeSlot.date == payload.date,
+#         TimeSlot.shop_id == shop.id
+#     ).delete()
+
+#     # Parse shop timings
+#     slot_date = DateType.fromisoformat(payload.date)
+#     open_dt  = datetime.strptime(f"{payload.date} {shop.open_time}",  "%Y-%m-%d %H:%M:%S" if len(shop.open_time) > 5 else "%Y-%m-%d %H:%M")
+#     close_dt = datetime.strptime(f"{payload.date} {shop.close_time}", "%Y-%m-%d %H:%M:%S" if len(shop.close_time) > 5 else "%Y-%m-%d %H:%M")
+#     duration = timedelta(minutes=service.duration_minutes)
+
+#     # Generate slots
+#     created_slots = []
+#     current = open_dt
+#     while current + duration <= close_dt:
+#         slot = TimeSlot(
+#             shop_id=shop.id,
+#             service_id=service.id,
+#             date=slot_date,
+#             start_time=current.time(),
+#             end_time=(current + duration).time(),
+#             capacity=1,
+#             booked=0,
+#         )
+#         db.add(slot)
+#         db.flush()
+#         created_slots.append({
+#             "start_time": current.strftime("%H:%M"),
+#             "end_time":   (current + duration).strftime("%H:%M"),
+#         })
+#         current += duration
+
+#     db.commit()
+
+#     return {
+#         "message": f"{len(created_slots)} slots created for {payload.date}",
+#         "service": service.name,
+#         "duration_minutes": service.duration_minutes,
+#         "shop_open": shop.open_time,
+#         "shop_close": shop.close_time,
+#         "slots_generated": created_slots
+#     }
+
+from datetime import datetime, timedelta, date as DateType
+from fastapi import HTTPException, Depends
+from sqlalchemy.orm import Session
+
+@router.post("/slots", status_code=201, summary="Auto-generate slots for a service on a date")
 def create_slot(
     payload: SlotCreate,
     current_user: User = Depends(require_shop_owner),
@@ -330,11 +420,103 @@ def create_slot(
     shop = current_user.shop
     if not shop:
         raise HTTPException(status_code=404, detail="Create your shop first")
-    slot = TimeSlot(shop_id=shop.id, **payload.model_dump())
-    db.add(slot)
+
+    if not shop.open_time or not shop.close_time:
+        raise HTTPException(
+            status_code=400,
+            detail="Set shop open_time and close_time first via PATCH /shop"
+        )
+
+    service = db.query(Service).filter(
+        Service.id == payload.service_id,
+        Service.shop_id == shop.id
+    ).first()
+    if not service:
+        raise HTTPException(status_code=404, detail="Service not found")
+
+    # Check whether any existing slots for this service/date already have bookings
+    existing_booked_slot = (
+        db.query(TimeSlot)
+        .filter(
+            TimeSlot.service_id == payload.service_id,
+            TimeSlot.date == payload.date,
+            TimeSlot.shop_id == shop.id,
+            TimeSlot.booked > 0
+        )
+        .first()
+    )
+
+    if existing_booked_slot:
+        raise HTTPException(
+            status_code=400,
+            detail="Some slots for this date are already booked. Cannot regenerate slots."
+        )
+
+    # Delete only unbooked existing slots
+    db.query(TimeSlot).filter(
+        TimeSlot.service_id == payload.service_id,
+        TimeSlot.date == payload.date,
+        TimeSlot.shop_id == shop.id
+    ).delete(synchronize_session=False)
+
+    # Parse shop timings
+    slot_date = DateType.fromisoformat(payload.date)
+
+    open_time_str = str(shop.open_time)
+    close_time_str = str(shop.close_time)
+
+    open_dt = datetime.strptime(
+        f"{payload.date} {open_time_str}",
+        "%Y-%m-%d %H:%M:%S" if len(open_time_str) > 5 else "%Y-%m-%d %H:%M"
+    )
+    close_dt = datetime.strptime(
+        f"{payload.date} {close_time_str}",
+        "%Y-%m-%d %H:%M:%S" if len(close_time_str) > 5 else "%Y-%m-%d %H:%M"
+    )
+
+    duration = timedelta(minutes=service.duration_minutes)
+
+    if open_dt >= close_dt:
+        raise HTTPException(status_code=400, detail="Shop close_time must be after open_time")
+
+    # Generate slots
+    created_slots = []
+    current = open_dt
+
+    while current + duration <= close_dt:
+        slot = TimeSlot(
+            shop_id=shop.id,
+            service_id=service.id,
+            date=slot_date,
+            start_time=current.time(),
+            end_time=(current + duration).time(),
+            capacity=1,
+            booked=0,
+        )
+        db.add(slot)
+        db.flush()  # Generates slot.id immediately
+
+        created_slots.append({
+            "slot_id": str(slot.id),
+            "start_time": current.strftime("%H:%M"),
+            "end_time": (current + duration).strftime("%H:%M"),
+            "capacity": slot.capacity,
+            "booked": slot.booked,
+            "is_available": slot.is_available,
+        })
+
+        current += duration
+
     db.commit()
-    db.refresh(slot)
-    return slot
+
+    return {
+        "message": f"{len(created_slots)} slots created for {payload.date}",
+        "service": service.name,
+        "duration_minutes": service.duration_minutes,
+        "shop_open": str(shop.open_time),
+        "shop_close": str(shop.close_time),
+        "slots_generated": created_slots
+    }
 
 
 @router.get("/slots", response_model=list[SlotResponse], summary="List my slots")
