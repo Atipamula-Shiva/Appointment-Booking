@@ -58,7 +58,6 @@ const CloseIcon = () => (
 
 const formatTime = (t) => {
   if (!t) return '—';
-  // Remove microseconds if present
   const cleanTime = t.split('.')[0];
   const [h, m] = cleanTime.split(':');
   const hour = parseInt(h);
@@ -67,62 +66,9 @@ const formatTime = (t) => {
   return `${hour12}:${m} ${ampm}`;
 };
 
-// Generate time slots based on service duration
-const generateTimeSlotsForService = (serviceDurationMinutes, selectedDate, bookedSlots = []) => {
-  const slots = [];
-  
-  // Business hours: 10 AM to 10 PM
-  const startHour = 10;
-  const endHour = 22; // 10 PM
-  
-  // Calculate total minutes in business hours
-  const totalBusinessMinutes = (endHour - startHour) * 60;
-  const numberOfSlots = Math.floor(totalBusinessMinutes / serviceDurationMinutes);
-  
-  // Generate slots based on service duration
-  for (let i = 0; i < numberOfSlots; i++) {
-    const slotStartMinutes = startHour * 60 + (i * serviceDurationMinutes);
-    const slotEndMinutes = slotStartMinutes + serviceDurationMinutes;
-    
-    // Don't exceed business hours
-    if (slotEndMinutes > endHour * 60) break;
-    
-    const startHour24 = Math.floor(slotStartMinutes / 60);
-    const startMinute = slotStartMinutes % 60;
-    const endHour24 = Math.floor(slotEndMinutes / 60);
-    const endMinute = slotEndMinutes % 60;
-    
-    const startTime = `${startHour24.toString().padStart(2, '0')}:${startMinute.toString().padStart(2, '0')}:00`;
-    const endTime = `${endHour24.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}:00`;
-    
-    // Check if this slot is already booked
-    const existingSlot = bookedSlots.find(slot => {
-      const slotStartTime = slot.start_time.split('.')[0];
-      return slotStartTime === startTime && slot.date === selectedDate;
-    });
-    
-    const isBooked = existingSlot ? existingSlot.booked >= existingSlot.capacity : false;
-    const bookedCount = existingSlot ? existingSlot.booked : 0;
-    const capacity = existingSlot ? existingSlot.capacity : 1; // Default capacity 1
-    
-    slots.push({
-      id: existingSlot?.id || `${selectedDate}-${startTime}`,
-      date: selectedDate,
-      start_time: startTime,
-      end_time: endTime,
-      capacity: capacity,
-      booked: bookedCount,
-      is_available: !isBooked && (capacity - bookedCount) > 0,
-      service_duration: serviceDurationMinutes
-    });
-  }
-  
-  return slots;
-};
-
 // ─── Mini Calendar ────────────────────────────────────────────────────────────
 
-function SlotCalendar({ availableDates, selectedDate, onSelectDate }) {
+function SlotCalendar({ availableDates, selectedDate, onSelectDate, onMonthChange }) {
   const today = new Date();
   const [viewYear, setViewYear] = useState(today.getFullYear());
   const [viewMonth, setViewMonth] = useState(today.getMonth());
@@ -138,12 +84,41 @@ function SlotCalendar({ availableDates, selectedDate, onSelectDate }) {
   const toStr = (y, m, d) => `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
 
   const prevMonth = () => {
-    if (viewMonth === 0) { setViewMonth(11); setViewYear(y => y-1); }
-    else setViewMonth(m => m-1);
+    let newYear = viewYear;
+    let newMonth = viewMonth;
+    
+    if (viewMonth === 0) { 
+      newMonth = 11; 
+      newYear = viewYear - 1;
+    } else { 
+      newMonth = viewMonth - 1;
+    }
+    
+    setViewMonth(newMonth);
+    setViewYear(newYear);
+    
+    if (onMonthChange) {
+      onMonthChange(newYear, newMonth);
+    }
   };
+  
   const nextMonth = () => {
-    if (viewMonth === 11) { setViewMonth(0); setViewYear(y => y+1); }
-    else setViewMonth(m => m+1);
+    let newYear = viewYear;
+    let newMonth = viewMonth;
+    
+    if (viewMonth === 11) { 
+      newMonth = 0; 
+      newYear = viewYear + 1;
+    } else { 
+      newMonth = viewMonth + 1;
+    }
+    
+    setViewMonth(newMonth);
+    setViewYear(newYear);
+    
+    if (onMonthChange) {
+      onMonthChange(newYear, newMonth);
+    }
   };
 
   const cells = [];
@@ -251,66 +226,65 @@ function BookingDialog({ service, shopId, onClose, onBooked }) {
   const { showSnackbar } = useSnackbar();
 
   const [step, setStep] = useState('calendar');
-  const [availableDates, setAvailableDates] = useState([]);
+  const [availableDates, setAvailableDates] = useState(new Set());
   const [slotsForDate, setSlotsForDate] = useState([]);
-  const [slotsLoading, setSlotsLoading] = useState(true);
+  const [slotsLoading, setSlotsLoading] = useState(false);
   const [dateSlotsLoading, setDateSlotsLoading] = useState(false);
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedSlot, setSelectedSlot] = useState(null);
   const [notes, setNotes] = useState('');
   const [booking, setBooking] = useState(false);
+  const [cachedSlots, setCachedSlots] = useState({});
 
-  // Get service duration (support multiple field names)
   const serviceDuration = service.duration_minutes || service.duration || 30;
 
-  // Fetch booked slots for date range to determine available dates
+  const fetchSlotsForDate = async (date, skipCache = false) => {
+    if (!skipCache && cachedSlots[date]) {
+      return cachedSlots[date];
+    }
+
+    const result = await customerApi.getServiceSlots(service.id, shopId, date);
+    
+    if (result.success && result.data) {
+      const slots = result.data;
+      setCachedSlots(prev => ({ ...prev, [date]: slots }));
+      return slots;
+    }
+    return [];
+  };
+
+  const checkDateAvailability = async (date) => {
+    const slots = await fetchSlotsForDate(date);
+    const hasAvailableSlots = slots.some(slot => slot.is_available);
+    
+    if (hasAvailableSlots) {
+      setAvailableDates(prev => new Set([...prev, date]));
+    } else {
+      setAvailableDates(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(date);
+        return newSet;
+      });
+    }
+    
+    return hasAvailableSlots;
+  };
+
   useEffect(() => {
-    const fetchAvailableDates = async () => {
+    const initializeCalendar = async () => {
       setSlotsLoading(true);
       const today = new Date();
-      const datesToFetch = [];
+      const todayStr = today.toISOString().split('T')[0];
       
-      // Check next 30 days for availability
-      for (let i = 0; i < 30; i++) {
-        const date = new Date(today);
-        date.setDate(today.getDate() + i);
-        datesToFetch.push(date.toISOString().split('T')[0]);
-      }
-      
-      // Fetch booked slots for all dates
-      const promises = datesToFetch.map(date => 
-        customerApi.getServiceSlots(service.id, date)
-      );
-      
-      const results = await Promise.all(promises);
-      const allDatesWithSlots = [];
-      
-      results.forEach((result, index) => {
-        if (result.success && result.data) {
-          const date = datesToFetch[index];
-          const bookedSlots = result.data;
-          
-          // Check if there are any available slots for this date
-          const hasAvailableSlots = generateTimeSlotsForService(
-            serviceDuration, 
-            date, 
-            bookedSlots
-          ).some(slot => slot.is_available);
-          
-          if (hasAvailableSlots) {
-            allDatesWithSlots.push(date);
-          }
-        }
-      });
-      
-      setAvailableDates(allDatesWithSlots);
+      await checkDateAvailability(todayStr);
+      setSelectedDate(todayStr);
       setSlotsLoading(false);
     };
     
-    if (service.id) {
-      fetchAvailableDates();
+    if (service.id && shopId) {
+      initializeCalendar();
     }
-  }, [service.id, serviceDuration]);
+  }, [service.id, shopId]);
 
   const handleDateSelect = async (date) => {
     setSelectedDate(date);
@@ -318,19 +292,46 @@ function BookingDialog({ service, shopId, onClose, onBooked }) {
     setStep('slot');
     setDateSlotsLoading(true);
     
-    // Fetch booked slots for the selected date
-    const result = await customerApi.getServiceSlots(service.id, date);
+    const slots = await fetchSlotsForDate(date);
     
-    if (result.success) {
-      const bookedSlots = result.data || [];
-      // Generate all possible slots based on service duration
-      const generatedSlots = generateTimeSlotsForService(serviceDuration, date, bookedSlots);
-      setSlotsForDate(generatedSlots);
+    if (slots.length > 0) {
+      setSlotsForDate(slots);
     } else {
-      showSnackbar('Could not load slots for this date', 'error', 3000);
+      showSnackbar('No slots available for this date', 'error', 3000);
       setSlotsForDate([]);
     }
     setDateSlotsLoading(false);
+  };
+
+  const handleMonthChange = async (year, month) => {
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const datesInMonth = [];
+    
+    for (let d = new Date(firstDay); d <= lastDay; d.setDate(d.getDate() + 1)) {
+      datesInMonth.push(d.toISOString().split('T')[0]);
+    }
+    
+    const fetchPromises = datesInMonth.map(date => 
+      cachedSlots[date] ? Promise.resolve(cachedSlots[date]) : fetchSlotsForDate(date)
+    );
+    
+    const results = await Promise.all(fetchPromises);
+    
+    results.forEach((slots, index) => {
+      const date = datesInMonth[index];
+      const hasAvailableSlots = slots.some(slot => slot.is_available);
+      
+      setAvailableDates(prev => {
+        const newSet = new Set(prev);
+        if (hasAvailableSlots) {
+          newSet.add(date);
+        } else {
+          newSet.delete(date);
+        }
+        return newSet;
+      });
+    });
   };
 
   const handleSlotSelect = (slot) => {
@@ -338,27 +339,28 @@ function BookingDialog({ service, shopId, onClose, onBooked }) {
     setStep('confirm');
   };
 
-  const handleBook = async () => {
-    if (!selectedSlot) return;
-    setBooking(true);
-    
-    const result = await customerApi.createBooking({
-      service_id: service.id,
-      slot_id: selectedSlot.id,
-      date: selectedDate,
-      start_time: selectedSlot.start_time,
-      end_time: selectedSlot.end_time,
-      notes: notes.trim() || undefined,
-    });
-    
-    if (result.success) {
-      setStep('success');
-      onBooked && onBooked(result.data);
-    } else {
-      showSnackbar(result.error || 'Booking failed', 'error', 3000);
-    }
-    setBooking(false);
-  };
+const handleBook = async () => {
+  if (!selectedSlot) return;
+  setBooking(true);
+  
+  const result = await customerApi.createBooking({
+    service_id: service.id,
+    slot_id: selectedSlot.id,
+    shop_id: shopId,  // Add shop_id here
+    date: selectedDate,
+    start_time: selectedSlot.start_time,
+    end_time: selectedSlot.end_time,
+    notes: notes.trim() || undefined,
+  });
+  
+  if (result.success) {
+    setStep('success');
+    onBooked && onBooked(result.data);
+  } else {
+    showSnackbar(result.error || 'Booking failed', 'error', 3000);
+  }
+  setBooking(false);
+};
 
   return (
     <>
@@ -466,27 +468,28 @@ function BookingDialog({ service, shopId, onClose, onBooked }) {
             {slotsLoading && (
               <div style={{ textAlign:'center', padding:'3rem' }}>
                 <div style={{ width:40, height:40, border:'4px solid #e2e8f0', borderTop:'4px solid #667eea', borderRadius:'50%', animation:'spin 1s linear infinite', margin:'0 auto 1rem' }} />
-                <p style={{ color:'#64748b', fontSize:'14px' }}>Fetching available slots…</p>
+                <p style={{ color:'#64748b', fontSize:'14px' }}>Loading available dates...</p>
               </div>
             )}
 
-            {!slotsLoading && availableDates.length === 0 && step !== 'success' && (
+            {!slotsLoading && availableDates.size === 0 && step !== 'success' && (
               <div style={{ textAlign:'center', padding:'3rem' }}>
-                <div style={{ fontSize:'48px', marginBottom:'1rem' }}>😔</div>
+                <div style={{ fontSize:'48px', marginBottom:'1rem' }}>📅</div>
                 <p style={{ fontSize:'16px', fontWeight:'700', color:'#1e293b', marginBottom:'6px' }}>No slots available</p>
                 <p style={{ fontSize:'13px', color:'#64748b' }}>This service has no open time slots right now. Please check back later.</p>
               </div>
             )}
 
-            {!slotsLoading && step === 'calendar' && availableDates.length > 0 && (
+            {!slotsLoading && step === 'calendar' && availableDates.size > 0 && (
               <div>
                 <p style={{ fontSize:'13px', color:'#64748b', marginBottom:'1rem' }}>
                   Dates with <span style={{ color:'#5b21b6', fontWeight:'600' }}>purple dots</span> have available slots. Select a date to continue.
                 </p>
                 <SlotCalendar
-                  availableDates={availableDates}
+                  availableDates={Array.from(availableDates)}
                   selectedDate={selectedDate}
                   onSelectDate={handleDateSelect}
+                  onMonthChange={handleMonthChange}
                 />
               </div>
             )}
@@ -651,25 +654,6 @@ function BookingDialog({ service, shopId, onClose, onBooked }) {
   );
 }
 
-// ─── Dummy fallbacks ──────────────────────────────────────────────────────────
-
-const dummyMenuItems = [
-  { id: 1, name: 'Haircut', description: 'Professional haircut service', price: 500, duration_minutes: 30 },
-  { id: 2, name: 'Hair Coloring', description: 'Premium hair coloring treatment', price: 1200, duration_minutes: 60 },
-  { id: 3, name: 'Beard Trimming', description: 'Expert beard shaping and trim', price: 300, duration_minutes: 20 },
-  { id: 4, name: 'Hair Spa', description: 'Relaxing hair spa treatment', price: 800, duration_minutes: 45 },
-  { id: 5, name: 'Massage', description: 'Full body relaxation massage', price: 1500, duration_minutes: 60 },
-  { id: 6, name: 'Facial Treatment', description: 'Complete facial grooming service', price: 600, duration_minutes: 40 },
-];
-
-const dummyShopDetails = {
-  name: 'Premium Salon & Spa',
-  address: '123 Main Street, Downtown District',
-  about: 'Professional salon and spa offering premium grooming services for over 10 years.',
-  rating: 4.8,
-  phone: '+1 555-1234',
-};
-
 // ─── Main BookingPage ─────────────────────────────────────────────────────────
 
 function BookingPage() {
@@ -678,7 +662,7 @@ function BookingPage() {
   const { user } = useAuth();
   const { showSnackbar } = useSnackbar();
 
-  const [menuItems, setMenuItems] = useState(null);
+  const [menuItems, setMenuItems] = useState([]);
   const [shopDetails, setShopDetails] = useState(null);
   const [loading, setLoading] = useState(true);
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
@@ -693,20 +677,32 @@ function BookingPage() {
 
   useEffect(() => {
     fetchShopDetails();
-    fetchMenuItems();
   }, [shopId]);
 
   const fetchShopDetails = async () => {
-    const result = await customerApi.getShop(shopId);
-    if (result.success) setShopDetails(result.data);
-    else setShopDetails(dummyShopDetails);
-  };
-
-  const fetchMenuItems = async () => {
     setLoading(true);
-    const result = await customerApi.getShopMenu(shopId);
-    if (result.success && result.data && result.data.length > 0) setMenuItems(result.data);
-    else setMenuItems(dummyMenuItems);
+    const result = await customerApi.getShop(shopId);
+    
+    if (result.success) {
+      setShopDetails(result.data);
+      
+      // Extract services from the shop data
+      if (result.data.services && result.data.services.length > 0) {
+        // Map the services to ensure they have an 'id' field
+        const services = result.data.services.map(service => ({
+          ...service,
+          id: service.service_id || service.id // Use service_id as id
+        }));
+        setMenuItems(services);
+      } else {
+        setMenuItems([]);
+      }
+    } else {
+      setShopDetails(null);
+      setMenuItems([]);
+      showSnackbar(result.error || 'Shop not found', 'error', 3000);
+    }
+    
     setLoading(false);
   };
 
@@ -715,10 +711,12 @@ function BookingPage() {
       ...service,
       id: service.id ?? service.service_id ?? service._id,
     };
+    
     if (!normalized.id) {
       showSnackbar('Cannot book: service ID is missing', 'error', 3000);
       return;
     }
+    
     setBookingService(normalized);
     setBookingDialogOpen(true);
   };
@@ -740,7 +738,28 @@ function BookingPage() {
     );
   }
 
-  const services = shopDetails?.services || menuItems || dummyMenuItems;
+  if (!shopDetails) {
+    return (
+      <div style={{ background:'#f1f5f9', minHeight:'100vh', padding: isMobile ? '1rem' : '2rem' }}>
+        <div style={{ maxWidth:'1400px', margin:'0 auto', textAlign:'center', paddingTop:'4rem' }}>
+          <div style={{ fontSize:'64px', marginBottom:'1rem' }}>🏪</div>
+          <h2 style={{ fontSize:'24px', fontWeight:'700', color:'#1e293b', marginBottom:'8px' }}>Shop Not Found</h2>
+          <p style={{ color:'#64748b', marginBottom:'1.5rem' }}>The shop you're looking for doesn't exist or has been removed.</p>
+          <button
+            onClick={() => navigate('/home')}
+            style={{
+              background:'linear-gradient(135deg,#667eea,#764ba2)',
+              color:'white', border:'none', padding:'12px 24px',
+              borderRadius:'12px', fontSize:'14px', fontWeight:'700',
+              cursor:'pointer'
+            }}
+          >
+            ← Back to Shops
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ background:'#f1f5f9', minHeight:'100vh', padding: isMobile ? '1rem' : '2rem' }}>
@@ -765,8 +784,8 @@ function BookingPage() {
               <img src={shopDetails.image_url} alt={shopDetails.name} style={{ width:'100%', height:'100%', objectFit:'cover' }} />
             ) : (
               <div style={{ textAlign:'center', color:'white' }}>
-                <div style={{ fontSize:'80px', marginBottom:'12px' }}>💇</div>
-                <div style={{ fontSize:'20px', fontWeight:'700' }}>Premium Salon</div>
+                <div style={{ fontSize:'80px', marginBottom:'12px' }}>💈</div>
+                <div style={{ fontSize:'20px', fontWeight:'700' }}>{shopDetails?.name || 'Salon & Spa'}</div>
               </div>
             )}
           </div>
@@ -780,7 +799,7 @@ function BookingPage() {
               <LocationIcon />
               <div>
                 <div style={{ fontSize:'12px', color:'#64748b', fontWeight:'600' }}>Address</div>
-                <div style={{ fontSize:'14px', color:'#1e293b', fontWeight:'500' }}>{shopDetails?.address}</div>
+                <div style={{ fontSize:'14px', color:'#1e293b', fontWeight:'500' }}>{shopDetails?.address || 'Address not available'}</div>
               </div>
             </div>
             {shopDetails?.phone && (
@@ -799,15 +818,17 @@ function BookingPage() {
           Services & Menu
         </h2>
 
-        {(!services || services.length === 0) ? (
-          <div style={{ textAlign:'center', padding:'40px', background:'white', borderRadius:'20px' }}>
-            <p style={{ color:'#64748b', fontSize:'14px' }}>No services available at the moment.</p>
+        {menuItems.length === 0 ? (
+          <div style={{ textAlign:'center', padding:'60px 20px', background:'white', borderRadius:'20px' }}>
+            <div style={{ fontSize:'48px', marginBottom:'1rem' }}>💇</div>
+            <h3 style={{ fontSize:'20px', fontWeight:'700', color:'#1e293b', marginBottom:'8px' }}>Coming Soon!</h3>
+            <p style={{ color:'#64748b', fontSize:'14px' }}>Services for this shop will be available shortly.</p>
           </div>
         ) : (
           <div style={{ display:'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(300px, 1fr))', gap:'1.5rem' }}>
-            {services.map((item, idx) => (
+            {menuItems.map((item, idx) => (
               <div
-                key={item.id || idx}
+                key={item.id || item.service_id || idx}
                 style={{
                   background:'white', borderRadius:'16px', padding:'1.5rem',
                   boxShadow:'0 2px 8px rgba(0,0,0,0.05)', border:'1px solid #e2e8f0',

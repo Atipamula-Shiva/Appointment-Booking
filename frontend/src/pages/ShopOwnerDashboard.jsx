@@ -281,7 +281,7 @@ function ShopOwnerDashboard() {
 
   const [services, setServices] = useState([]);
   const [categories, setCategories] = useState([]);
-  const [orders, setOrders] = useState([]);
+  const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
@@ -334,6 +334,7 @@ function ShopOwnerDashboard() {
         is_open: typeof shopDetails.is_open === 'boolean' ? shopDetails.is_open : true,
       });
       await fetchServices();
+      await fetchBookings();
     } else {
       setShop(null);
       setIsNewShop(true);
@@ -344,8 +345,6 @@ function ShopOwnerDashboard() {
         }
       }
     }
-    const ordersResult = await shopOwnerApi.getIncomingOrders();
-    if (ordersResult.success) setOrders(ordersResult.data || []);
     setLoading(false);
   };
 
@@ -358,6 +357,31 @@ function ShopOwnerDashboard() {
   const fetchCategories = async () => {
     const result = await shopOwnerApi.getCategories();
     if (result.success) setCategories(result.data || []);
+  };
+
+  const fetchBookings = async () => {
+    const result = await shopOwnerApi.getShopBookings();
+    if (result.success) {
+      // Fetch customer and service details for each booking
+      const enrichedBookings = await Promise.all(
+        (result.data || []).map(async (booking) => {
+          try {
+            const customerResult = await shopOwnerApi.getCustomerDetails(booking.customer_id);
+            const serviceResult = await shopOwnerApi.getService(booking.service_id);
+            return {
+              ...booking,
+              customer: customerResult.success ? customerResult.data : null,
+              service: serviceResult.success ? serviceResult.data : null
+            };
+          } catch (error) {
+            return booking;
+          }
+        })
+      );
+      setBookings(enrichedBookings);
+    } else {
+      showSnackbar(result.error || 'Failed to fetch bookings', 'error', 3000);
+    }
   };
 
   const fetchSlots = async () => {
@@ -379,7 +403,9 @@ function ShopOwnerDashboard() {
         image_url: shopForm.image_url,
         latitude: Number(shopForm.latitude) || 0,
         longitude: Number(shopForm.longitude) || 0,
-        ...(isNewShop ? {} : { is_open: shopForm.is_open }),
+        open_time: shopForm.open_time || null,
+        close_time: shopForm.close_time || null,
+        is_open: shopForm.is_open ,
       };
       const result = isNewShop
         ? await shopOwnerApi.createShop(payload)
@@ -434,10 +460,16 @@ function ShopOwnerDashboard() {
     }
   };
 
-  const handleOrderStatusChange = async (orderId, newStatus) => {
-    const result = await shopOwnerApi.updateOrderStatus(orderId, newStatus);
-    if (result.success) { setOrders(orders.map(o => o.id === orderId ? { ...o, status: newStatus } : o)); showSnackbar('Order status updated', 'success', 2000); }
-    else showSnackbar(result.error || 'Failed to update order', 'error', 3000);
+  const handleBookingStatusChange = async (bookingId, newStatus) => {
+    const result = await shopOwnerApi.updateBookingStatus(bookingId, newStatus);
+    if (result.success) {
+      setBookings(bookings.map(b => 
+        b.id === bookingId ? { ...b, status: newStatus } : b
+      ));
+      showSnackbar(`Booking ${newStatus.toLowerCase()} successfully!`, 'success', 3000);
+    } else {
+      showSnackbar(result.error || 'Failed to update booking status', 'error', 3000);
+    }
   };
 
   const handleSlotSaved = (newSlot) => {
@@ -446,7 +478,16 @@ function ShopOwnerDashboard() {
   };
 
   const getStatusColor = (status) => {
-    const colors = { PENDING: { bg:'#fef3c7', text:'#92400e' }, CONFIRMED: { bg:'#dbeafe', text:'#1e40af' }, PREPARING: { bg:'#fed7aa', text:'#9b2c1d' }, READY: { bg:'#dcfce7', text:'#166534' }, DELIVERED: { bg:'#cffafe', text:'#0e7490' }, CANCELLED: { bg:'#fee2e2', text:'#991b1b' } };
+    const colors = { 
+      PENDING: { bg: '#fef3c7', text: '#92400e' }, 
+      CONFIRMED: { bg: '#dbeafe', text: '#1e40af' }, 
+      COMPLETED: { bg: '#dcfce7', text: '#166534' }, 
+      CANCELLED: { bg: '#fee2e2', text: '#991b1b' },
+      pending: { bg: '#fef3c7', text: '#92400e' }, 
+      confirmed: { bg: '#dbeafe', text: '#1e40af' }, 
+      completed: { bg: '#dcfce7', text: '#166534' }, 
+      cancelled: { bg: '#fee2e2', text: '#991b1b' }
+    };
     return colors[status] || colors.PENDING;
   };
 
@@ -469,7 +510,11 @@ function ShopOwnerDashboard() {
   };
 
   const isMobile = windowWidth < 768;
-  const activeOrders = orders.filter(o => !['DELIVERED','CANCELLED'].includes(o.status)).length;
+  
+  // Calculate booking stats
+  const activeBookings = bookings.filter(b => !['CANCELLED', 'COMPLETED'].includes(b.status?.toUpperCase() || '')).length;
+  const pendingBookings = bookings.filter(b => (b.status?.toUpperCase() || '') === 'PENDING').length;
+  const confirmedBookings = bookings.filter(b => (b.status?.toUpperCase() || '') === 'CONFIRMED').length;
 
   // Filtered slots
   const filteredSlots = slots.filter(slot => {
@@ -573,18 +618,11 @@ function ShopOwnerDashboard() {
         .icon-button { background: transparent; border: none; cursor: pointer; padding: 8px; border-radius: 8px; transition: all 0.2s ease; }
         .icon-button:hover { background: #f1f5f9; transform: scale(1.1); }
 
-        /* Orders */
-        .orders-table-container { overflow-x: auto; }
-        .orders-table { width: 100%; border-collapse: collapse; }
-        .orders-table th { text-align: left; padding: 1rem; font-weight: 600; color: #64748b; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid #e2e8f0; }
-        .orders-table td { padding: 1rem; font-size: 14px; color: #1e293b; border-bottom: 1px solid #e2e8f0; }
-        .orders-table tr { transition: background-color 0.2s ease; }
-        .orders-table tr:hover { background-color: #f8fafc; }
+        /* Bookings */
+        .bookings-container { display: flex; flex-direction: column; gap: 1rem; }
         .status-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
-        .status-select { padding: 6px 10px; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 12px; cursor: pointer; transition: all 0.2s ease; }
-        .status-select:focus { outline: none; border-color: #667eea; }
 
-        /* ── Slots Tab ── */
+        /* Slots */
         .slots-toolbar {
           display: flex;
           gap: 1rem;
@@ -669,7 +707,7 @@ function ShopOwnerDashboard() {
         .slots-empty-icon { font-size: 48px; margin-bottom: 1rem; }
         .slots-empty-text { font-size: 16px; font-weight: 600; color: #64748b; margin-bottom: 0.5rem; }
 
-        /* ── Set Slot Modal ── */
+        /* Set Slot Modal */
         .slot-modal {
           max-width: 820px !important;
           width: 95% !important;
@@ -798,9 +836,9 @@ function ShopOwnerDashboard() {
         {!isNewShop && (
           <div className="stats-grid">
             <StatCard title="Total Services" value={services.length} icon={<MenuIcon />} color="#667eea" />
-            <StatCard title="Active Orders" value={activeOrders} icon={<OrdersIcon />} color="#f59e0b" />
-            <StatCard title="Total Orders" value={orders.length} icon={<DashboardIcon />} color="#10b981" />
-            <StatCard title="Total Slots" value={slots.length} icon={<SlotIcon />} color="#8b5cf6" />
+            <StatCard title="Pending Bookings" value={pendingBookings} icon={<OrdersIcon />} color="#f59e0b" />
+            <StatCard title="Active Bookings" value={activeBookings} icon={<DashboardIcon />} color="#10b981" />
+            <StatCard title="Total Bookings" value={bookings.length} icon={<SlotIcon />} color="#8b5cf6" />
           </div>
         )}
 
@@ -810,7 +848,7 @@ function ShopOwnerDashboard() {
             {[
               { id:'overview', label:'Overview', icon:<DashboardIcon /> },
               { id:'services', label:'Services', icon:<MenuIcon /> },
-              { id:'orders', label:'Orders', icon:<OrdersIcon /> },
+              { id:'orders', label:'Bookings', icon:<OrdersIcon /> },
               { id:'slots', label:'Slots', icon:<SlotIcon /> },
             ].map(tab => (
               <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`tab-button ${activeTab === tab.id ? 'active' : ''}`}>
@@ -832,11 +870,14 @@ function ShopOwnerDashboard() {
             <div className="form-grid">
               {[
                 { label:'🏪 Shop Name', key:'name', placeholder:'Your amazing shop name', type:'text' },
-                { label:'📞 Phone', key:'phone', placeholder:'+1 555 1234', type:'text' },
+                { label:'📝 Description', key:'description', placeholder:'About your shop', type:'text' },
+                { label:'📞 Phone', key:'phone', placeholder:'+91 9876543210', type:'text' },
                 { label:'📍 Address', key:'address', placeholder:'Full shop address', type:'text' },
                 { label:'🗺️ Latitude', key:'latitude', placeholder:'0.0000', type:'number' },
                 { label:'🗺️ Longitude', key:'longitude', placeholder:'0.0000', type:'number' },
                 { label:'🖼️ Image URL', key:'image_url', placeholder:'https://...', type:'text' },
+                { label:'⏰ Open Time', key:'open_time', placeholder:'09:00', type:'time' },
+                { label:'⏰ Close Time', key:'close_time', placeholder:'21:00', type:'time' },
               ].map(field => (
                 <div key={field.key} className="form-group">
                   <label className="form-label">{field.label}</label>
@@ -849,10 +890,6 @@ function ShopOwnerDashboard() {
                   <option value="open">🟢 Open for Business</option>
                   <option value="closed">🔴 Currently Closed</option>
                 </select>
-              </div>
-              <div className="form-group">
-                <label className="form-label">📝 Description</label>
-                <textarea value={shopForm.description ?? ''} placeholder="Tell customers about your shop..." onChange={e => handleFormChange('description', e.target.value)} className="form-input" rows="3" style={{ resize:'vertical' }} />
               </div>
             </div>
             <div style={{ display:'flex', alignItems:'center', gap:'1rem', flexWrap:'wrap' }}>
@@ -905,51 +942,272 @@ function ShopOwnerDashboard() {
           </div>
         )}
 
-        {/* ── Orders ── */}
+        {/* ── Bookings (Orders) ── */}
         {activeTab === 'orders' && (
           <div className="content-card">
             <div className="card-header">
-              <h2 className="card-title">📦 Incoming Orders</h2>
-              <div className="shop-badge"><span>{activeOrders} active orders</span></div>
+              <h2 className="card-title">📋 Booking Requests</h2>
+              <div className="shop-badge">
+                <span>{pendingBookings} pending · {activeBookings} active</span>
+              </div>
             </div>
-            {orders.length === 0 ? (
-              <div style={{ textAlign:'center', padding:'3rem' }}>
-                <p style={{ color:'#64748b' }}>No orders yet</p>
-                <p style={{ color:'#94a3b8', fontSize:'14px', marginTop:'0.5rem' }}>When customers place orders, they'll appear here</p>
+
+            {bookings.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '3rem' }}>
+                <div style={{ fontSize: '48px', marginBottom: '1rem' }}>📭</div>
+                <p style={{ color: '#64748b', marginBottom: '0.5rem' }}>No booking requests yet</p>
+                <p style={{ color: '#94a3b8', fontSize: '14px' }}>When customers book your services, they'll appear here</p>
               </div>
             ) : (
-              <div className="orders-table-container">
-                <table className="orders-table">
-                  <thead>
-                    <tr><th>Order ID</th><th>Customer</th><th>Amount</th><th>Status</th><th>Action</th></tr>
-                  </thead>
-                  <tbody>
-                    {orders.map(order => {
-                      const statusStyle = getStatusColor(order.status);
-                      return (
-                        <tr key={order.id}>
-                          <td>#{order.id}</td>
-                          <td>
-                            <div style={{ fontWeight:'600' }}>{order.customer_name || 'Anonymous'}</div>
-                            {order.customer_phone && <div style={{ fontSize:'12px', color:'#64748b' }}>{order.customer_phone}</div>}
-                          </td>
-                          <td><strong>₹{order.total_amount?.toFixed(2) || '0.00'}</strong></td>
-                          <td><span className="status-badge" style={{ background: statusStyle.bg, color: statusStyle.text }}>{order.status}</span></td>
-                          <td>
-                            <select value={order.status} onChange={e => handleOrderStatusChange(order.id, e.target.value)} className="status-select">
-                              <option value="PENDING">⏳ Pending</option>
-                              <option value="CONFIRMED">✓ Confirmed</option>
-                              <option value="PREPARING">👨‍🍳 Preparing</option>
-                              <option value="READY">✅ Ready</option>
-                              <option value="DELIVERED">🚚 Delivered</option>
-                              <option value="CANCELLED">❌ Cancelled</option>
-                            </select>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+              <div className="bookings-container">
+                {/* Summary Cards */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                  gap: '1rem',
+                  marginBottom: '1.5rem',
+                }}>
+                  <div style={{ background: '#f0fdf4', borderRadius: '12px', padding: '1rem', border: '1px solid #bbf7d0' }}>
+                    <div style={{ fontSize: '24px', fontWeight: '700', color: '#166534' }}>{pendingBookings}</div>
+                    <div style={{ fontSize: '12px', color: '#166534' }}>Pending Approval</div>
+                  </div>
+                  <div style={{ background: '#dbeafe', borderRadius: '12px', padding: '1rem', border: '1px solid #bfdbfe' }}>
+                    <div style={{ fontSize: '24px', fontWeight: '700', color: '#1e40af' }}>{confirmedBookings}</div>
+                    <div style={{ fontSize: '12px', color: '#1e40af' }}>Confirmed</div>
+                  </div>
+                  <div style={{ background: '#fef3c7', borderRadius: '12px', padding: '1rem', border: '1px solid #fde68a' }}>
+                    <div style={{ fontSize: '24px', fontWeight: '700', color: '#92400e' }}>{activeBookings}</div>
+                    <div style={{ fontSize: '12px', color: '#92400e' }}>Active Bookings</div>
+                  </div>
+                  <div style={{ background: '#f1f5f9', borderRadius: '12px', padding: '1rem', border: '1px solid #e2e8f0' }}>
+                    <div style={{ fontSize: '24px', fontWeight: '700', color: '#475569' }}>{bookings.length}</div>
+                    <div style={{ fontSize: '12px', color: '#475569' }}>Total Bookings</div>
+                  </div>
+                </div>
+
+                {/* Bookings List */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  {bookings.map((booking) => {
+                    const statusColor = getStatusColor(booking.status);
+                    const isPending = (booking.status?.toUpperCase() || '') === 'PENDING';
+                    
+                    return (
+                      <div
+                        key={booking.id}
+                        style={{
+                          background: 'white',
+                          border: `1px solid ${isPending ? '#fef3c7' : '#e2e8f0'}`,
+                          borderRadius: '16px',
+                          padding: '1.25rem',
+                          transition: 'all 0.3s ease',
+                          boxShadow: isPending ? '0 2px 8px rgba(245, 158, 11, 0.1)' : '0 1px 3px rgba(0,0,0,0.05)',
+                        }}
+                      >
+                        {/* Header */}
+                        <div style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'flex-start',
+                          flexWrap: 'wrap',
+                          gap: '12px',
+                          marginBottom: '16px',
+                        }}>
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', marginBottom: '6px' }}>
+                              <h3 style={{ fontSize: '16px', fontWeight: '700', color: '#1e293b', margin: 0 }}>
+                                Booking #{booking.id.slice(0, 8)}
+                              </h3>
+                              <span className="status-badge" style={{ background: statusColor.bg, color: statusColor.text }}>
+                                {booking.status}
+                              </span>
+                              {isPending && (
+                                <span style={{
+                                  background: '#fef3c7',
+                                  color: '#92400e',
+                                  padding: '2px 8px',
+                                  borderRadius: '12px',
+                                  fontSize: '10px',
+                                  fontWeight: '600',
+                                }}>
+                                  ⏳ Needs Action
+                                </span>
+                              )}
+                            </div>
+                            <p style={{ fontSize: '12px', color: '#94a3b8', margin: 0 }}>
+                              Booked on {new Date(booking.created_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Customer & Service Details */}
+                        <div style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+                          gap: '16px',
+                          marginBottom: '16px',
+                          padding: '12px 0',
+                          borderTop: '1px solid #f1f5f9',
+                          borderBottom: '1px solid #f1f5f9',
+                        }}>
+                          <div>
+                            <div style={{ fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>
+                              Customer Details
+                            </div>
+                            <div style={{ fontSize: '14px', fontWeight: '600', color: '#1e293b', marginBottom: '4px' }}>
+                              {booking.customer?.name || 'Customer'}
+                            </div>
+                            {booking.customer?.phone && (
+                              <div style={{ fontSize: '12px', color: '#64748b', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                📞 {booking.customer.phone}
+                              </div>
+                            )}
+                            {booking.customer?.email && (
+                              <div style={{ fontSize: '12px', color: '#64748b', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                ✉️ {booking.customer.email}
+                              </div>
+                            )}
+                          </div>
+                          
+                          <div>
+                            <div style={{ fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>
+                              Service Details
+                            </div>
+                            <div style={{ fontSize: '14px', fontWeight: '600', color: '#1e293b', marginBottom: '4px' }}>
+                              {booking.service?.name || 'Service'}
+                            </div>
+                            {booking.service?.price && (
+                              <div style={{ fontSize: '12px', color: '#667eea', fontWeight: '600' }}>
+                                ₹{booking.service.price}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Notes */}
+                        {booking.notes && (
+                          <div style={{
+                            fontSize: '13px',
+                            color: '#64748b',
+                            background: '#f8fafc',
+                            padding: '10px 12px',
+                            borderRadius: '10px',
+                            marginBottom: '16px',
+                            borderLeft: '3px solid #667eea',
+                          }}>
+                            📝 <strong>Notes:</strong> {booking.notes}
+                          </div>
+                        )}
+
+                        {/* Action Buttons */}
+                        <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
+                          {isPending ? (
+                            <>
+                              <button
+                                onClick={() => handleBookingStatusChange(booking.id, 'confirmed')}
+                                style={{
+                                  flex: 1,
+                                  background: 'linear-gradient(135deg, #10b981, #059669)',
+                                  color: 'white',
+                                  border: 'none',
+                                  padding: '10px 16px',
+                                  borderRadius: '10px',
+                                  fontSize: '13px',
+                                  fontWeight: '600',
+                                  cursor: 'pointer',
+                                  transition: 'all 0.2s ease',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  gap: '6px',
+                                }}
+                                onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
+                                onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+                              >
+                                ✓ Accept Booking
+                              </button>
+                              <button
+                                onClick={() => handleBookingStatusChange(booking.id, 'cancelled')}
+                                style={{
+                                  flex: 1,
+                                  background: 'white',
+                                  border: '1.5px solid #ef4444',
+                                  color: '#ef4444',
+                                  padding: '10px 16px',
+                                  borderRadius: '10px',
+                                  fontSize: '13px',
+                                  fontWeight: '600',
+                                  cursor: 'pointer',
+                                  transition: 'all 0.2s ease',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  gap: '6px',
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.background = '#fef2f2';
+                                  e.currentTarget.style.transform = 'translateY(-2px)';
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.background = 'white';
+                                  e.currentTarget.style.transform = 'translateY(0)';
+                                }}
+                              >
+                                ✗ Reject Booking
+                              </button>
+                            </>
+                          ) : (booking.status?.toUpperCase() || '') === 'CONFIRMED' ? (
+                            <div style={{
+                              flex: 1,
+                              background: '#dcfce7',
+                              color: '#166534',
+                              padding: '10px 16px',
+                              borderRadius: '10px',
+                              fontSize: '13px',
+                              fontWeight: '600',
+                              textAlign: 'center',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '6px',
+                            }}>
+                              ✓ Booking Confirmed
+                            </div>
+                          ) : (booking.status?.toUpperCase() || '') === 'CANCELLED' ? (
+                            <div style={{
+                              flex: 1,
+                              background: '#fee2e2',
+                              color: '#991b1b',
+                              padding: '10px 16px',
+                              borderRadius: '10px',
+                              fontSize: '13px',
+                              fontWeight: '600',
+                              textAlign: 'center',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '6px',
+                            }}>
+                              ✗ Booking Cancelled
+                            </div>
+                          ) : (
+                            <div style={{
+                              flex: 1,
+                              background: '#e2e8f0',
+                              color: '#64748b',
+                              padding: '10px 16px',
+                              borderRadius: '10px',
+                              fontSize: '13px',
+                              fontWeight: '600',
+                              textAlign: 'center',
+                            }}>
+                              {booking.status}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             )}
           </div>

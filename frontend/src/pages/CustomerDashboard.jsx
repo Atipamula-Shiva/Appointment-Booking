@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import useSnackbar from '../common/Snackbar';
 import customerApi from '../services/customerApi';
-// import AppointmentsDialog from '../components/AppointmentsDialog';
+import AppointmentsDialog from '../components/AppointmentsDialog';
 
 const StarIcon = ({ filled = true }) => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill={filled ? '#FFD700' : '#E2E8F0'} xmlns="http://www.w3.org/2000/svg">
@@ -775,6 +775,15 @@ function CustomerDashboard() {
             ))}
           </div>
         )}
+        <AppointmentsDialog 
+  open={dialogOpen}
+  onClose={() => {
+    setDialogOpen(false);
+    fetchAppointments(); // Refresh stats when dialog closes
+  }}
+  appointments={myAppointments}
+  onRefresh={fetchAppointments}
+/>
       </div>
 
       <style>

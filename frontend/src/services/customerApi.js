@@ -46,21 +46,34 @@ class CustomerApiService {
    * @param {string} serviceId
    * @param {string} [date] - optional date filter "YYYY-MM-DD"
    */
-  async getServiceSlots(serviceId, date = null) {
-    try {
-      const params = {};
-      if (date) {
-        params.date = date;
-      }
-      
-      console.log("Fetching slots:", `/services/${serviceId}/slots`, params);
-      const response = await api.get(`/services/${serviceId}/slots`, { params });
-      return { success: true, data: response.data };
-    } catch (error) {
-      console.error("API Error:", error.response?.data);
-      return { success: false, error: error.response?.data?.detail || error.response?.data?.message || 'Failed to fetch slots' };
-    }
+async getServiceSlots(serviceId, shopId, date) {
+  try {
+    const params = {
+      shop_id: shopId,
+      date: date
+    };
+
+    console.log("API URL:", `/services/${serviceId}/slots`);
+    console.log("Params:", params);
+
+    const response = await api.get(`/services/${serviceId}/slots`, { params });
+
+    console.log("Slots Response:", response.data);
+
+    return { success: true, data: response.data };
+  } catch (error) {
+    console.error("Full Error:", error);
+
+    return {
+      success: false,
+      error:
+        error.response?.data?.detail ||
+        error.response?.data?.message ||
+        error.message ||
+        "Failed to fetch slots",
+    };
   }
+}
 
   /**
    * Create a new slot (if needed)
@@ -85,6 +98,7 @@ class CustomerApiService {
       const response = await api.post('/bookings', {
         slot_id: bookingData.slot_id,
         service_id: bookingData.service_id,
+        shop_id: bookingData.shop_id,
         notes: bookingData.notes,
         date: bookingData.date,
         start_time: bookingData.start_time,
