@@ -55,6 +55,7 @@ class ShopCreate(BaseModel):
     is_open: bool | None = None
 
 class ShopUpdate(BaseModel):
+    shop_id: UUID
     name: str | None = None
     description: str | None = None
     address: str | None = None
