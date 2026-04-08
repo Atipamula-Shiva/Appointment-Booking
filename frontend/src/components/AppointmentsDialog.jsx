@@ -1,1066 +1,661 @@
-import { useState, useEffect, useRef } from 'react';
-import { useAuth } from '../context/AuthContext';
+import { useState, useEffect } from 'react';
 import useSnackbar from '../common/Snackbar';
-import shopOwnerApi from '../services/shopOwnerApi';
-import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Button,
-  TextField,
-  FormControlLabel,
-  Switch,
-  Box,
-  Typography,
-  IconButton,
-  Grid,
-  Card,
-  CardContent,
-  CardMedia,
-  Chip,
-  Avatar,
-  Divider,
-  Paper
-} from '@mui/material';
-import CloseIcon from '@mui/icons-material/Close';
-import EditIcon from '@mui/icons-material/Edit';
-import AddIcon from '@mui/icons-material/Add';
-import StoreIcon from '@mui/icons-material/Store';
-import LocationOnIcon from '@mui/icons-material/LocationOn';
-import PhoneIcon from '@mui/icons-material/Phone';
-import AccessTimeIcon from '@mui/icons-material/AccessTime';
-import DescriptionIcon from '@mui/icons-material/Description';
+import customerApi from '../services/customerApi';
 
-function ShopOwnerDashboard() {
-  const { user } = useAuth();
+const CloseIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+  </svg>
+);
+
+const CalendarIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v10zM7 10h5v5H7v-5z"/>
+  </svg>
+);
+
+const ClockIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/>
+  </svg>
+);
+
+const formatDate = (dateStr) => {
+  if (!dateStr) return '—';
+  const date = new Date(dateStr);
+  return date.toLocaleDateString('en-IN', { 
+    day: 'numeric', 
+    month: 'long', 
+    year: 'numeric' 
+  });
+};
+
+const formatDateTime = (dateStr) => {
+  if (!dateStr) return '—';
+  const date = new Date(dateStr);
+  return date.toLocaleString('en-IN', { 
+    day: 'numeric', 
+    month: 'short', 
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+};
+
+const getStatusBadge = (status) => {
+  const statusConfig = {
+    'PENDING': { color: '#f59e0b', bg: '#fef3c7', text: 'Pending', icon: '⏳', glow: '0 0 8px rgba(245, 158, 11, 0.3)' },
+    'CONFIRMED': { color: '#10b981', bg: '#d1fae5', text: 'Confirmed', icon: '✓', glow: '0 0 8px rgba(16, 185, 129, 0.3)' },
+    'COMPLETED': { color: '#3b82f6', bg: '#dbeafe', text: 'Completed', icon: '✅', glow: '0 0 8px rgba(59, 130, 246, 0.3)' },
+    'CANCELLED': { color: '#ef4444', bg: '#fee2e2', text: 'Cancelled', icon: '❌', glow: '0 0 8px rgba(239, 68, 68, 0.3)' },
+    'pending': { color: '#f59e0b', bg: '#fef3c7', text: 'Pending', icon: '⏳', glow: '0 0 8px rgba(245, 158, 11, 0.3)' },
+    'confirmed': { color: '#10b981', bg: '#d1fae5', text: 'Confirmed', icon: '✓', glow: '0 0 8px rgba(16, 185, 129, 0.3)' },
+    'completed': { color: '#3b82f6', bg: '#dbeafe', text: 'Completed', icon: '✅', glow: '0 0 8px rgba(59, 130, 246, 0.3)' },
+    'cancelled': { color: '#ef4444', bg: '#fee2e2', text: 'Cancelled', icon: '❌', glow: '0 0 8px rgba(239, 68, 68, 0.3)' }
+  };
+  
+  const config = statusConfig[status] || statusConfig.PENDING;
+  
+  return (
+    <span style={{
+      background: config.bg,
+      color: config.color,
+      padding: '6px 14px',
+      borderRadius: '24px',
+      fontSize: '12px',
+      fontWeight: '600',
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: '6px',
+      boxShadow: config.glow,
+      transition: 'all 0.2s ease',
+    }}>
+      <span style={{ fontSize: '14px' }}>{config.icon}</span>
+      {config.text}
+    </span>
+  );
+};
+
+function AppointmentsDialog({ open, onClose, appointments: initialAppointments, onRefresh }) {
   const { showSnackbar } = useSnackbar();
-  const [shops, setShops] = useState([]);
-  const [selectedShop, setSelectedShop] = useState(null);
-  const [shopForm, setShopForm] = useState({
-    name: '',
-    description: '',
-    address: '',
-    phone: '',
-    image_url: '',
-    image_file: null,
-    latitude: 0,
-    longitude: 0,
-    is_open: true,
-    working_days: '',
-    working_hours: '',
-  });
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
-  const [savingShop, setSavingShop] = useState(false);
-  const [services, setServices] = useState([]);
-  const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('overview');
-  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
-  const [showAddServiceModal, setShowAddServiceModal] = useState(false);
-  const [newService, setNewService] = useState({ 
-    category_id: '', 
-    name: '', 
-    description: '', 
-    price: '', 
-    duration_minutes: '', 
-    image_url: '' 
-  });
-  const [savingService, setSavingService] = useState(false);
-  const [imagePreview, setImagePreview] = useState(null);
-  const fileInputRef = useRef(null);
+  const [appointments, setAppointments] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [selectedAppointment, setSelectedAppointment] = useState(null);
+  const [showDetails, setShowDetails] = useState(false);
+  const [cancellingId, setCancellingId] = useState(null);
 
   useEffect(() => {
-    const handleResize = () => setWindowWidth(window.innerWidth);
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  useEffect(() => {
-    fetchShopData();
-  }, []);
-
-  const fetchShopData = async () => {
-    setLoading(true);
-    
-    // Fetch all shops for the shop owner
-    const shopsResult = await shopOwnerApi.getMyShops();
-    if (shopsResult.success) {
-      const shopsData = Array.isArray(shopsResult.data) ? shopsResult.data : [shopsResult.data].filter(Boolean);
-      setShops(shopsData);
-      if (shopsData.length > 0) {
-        setSelectedShop(shopsData[0]); // Select first shop by default
-      }
-    } else {
-      setShops([]);
-      if (shopsResult.success === false) {
-        const lowerErr = (shopsResult.error || '').toString().toLowerCase();
-        if (!lowerErr.includes('not found') && !lowerErr.includes('404')) {
-          showSnackbar(shopsResult.error || 'Failed to fetch shops', 'error', 3000);
-        }
-      }
+    if (open && initialAppointments) {
+      fetchAppointmentDetails(initialAppointments);
+    } else if (open) {
+      fetchAppointments();
     }
+  }, [open, initialAppointments]);
 
+  const fetchAppointments = async () => {
+    setLoading(true);
+    const result = await customerApi.getMyBookings();
+    if (result.success) {
+      setAppointments(result.data || []);
+    } else {
+      showSnackbar(result.error || 'Failed to fetch appointments', 'error', 3000);
+    }
     setLoading(false);
   };
 
-  const handleShopSelect = async (shop) => {
-    setSelectedShop(shop);
-    // Fetch services and orders for the selected shop
-    const servicesResult = await shopOwnerApi.getServices();
-    if (servicesResult.success) {
-      setServices(servicesResult.data || []);
-    }
-
-    const ordersResult = await shopOwnerApi.getIncomingOrders();
-    if (ordersResult.success) {
-      setOrders(ordersResult.data || []);
-    }
-  };
-
-  const handleCreateShop = () => {
-    setShopForm({
-      name: '',
-      description: '',
-      address: '',
-      phone: '',
-      image_url: '',
-      image_file: null,
-      latitude: 0,
-      longitude: 0,
-      is_open: true,
-      working_days: '',
-      working_hours: '',
-    });
-    setImagePreview(null);
-    setIsEditing(false);
-    setDialogOpen(true);
-  };
-
-  const handleEditShop = (shop) => {
-    setShopForm({
-      name: shop.name || '',
-      description: shop.description || '',
-      address: shop.address || '',
-      phone: shop.phone || '',
-      image_url: shop.image_url || '',
-      image_file: null,
-      latitude: shop.latitude || 0,
-      longitude: shop.longitude || 0,
-      is_open: typeof shop.is_open === 'boolean' ? shop.is_open : true,
-      working_days: shop.working_days || '',
-      working_hours: shop.working_hours || '',
-    });
-    setImagePreview(shop.image_url || null);
-    setIsEditing(true);
-    setDialogOpen(true);
-  };
-
-  const handleFormChange = (field, value) => {
-    setShopForm((prev) => ({ ...prev, [field]: value }));
-  };
-
-  const handleImageChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        showSnackbar('Image size should be less than 5MB', 'error', 3000);
-        return;
-      }
-      if (!file.type.startsWith('image/')) {
-        showSnackbar('Please select an image file', 'error', 3000);
-        return;
-      }
-      
-      setShopForm(prev => ({ ...prev, image_file: file, image_url: '' }));
-      
-      // Create preview
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const handleShopSubmit = async () => {
-    if (!shopForm.name.trim()) {
-      showSnackbar('Shop name is required', 'error', 3000);
-      return;
-    }
-
-    setSavingShop(true);
-    try {
-      let imageUrl = shopForm.image_url;
-
-      // Handle image upload if there's a new file
-      if (shopForm.image_file) {
-        // For now, we'll assume the image is uploaded separately
-        // In a real app, you'd upload to a cloud storage service
-        imageUrl = imagePreview; // Use the preview as URL for now
-      }
-
-      const shopData = {
-        ...shopForm,
-        image_url: imageUrl,
-      };
-
-      let result;
-      if (isEditing) {
-        result = await shopOwnerApi.updateShop(shopData);
-      } else {
-        result = await shopOwnerApi.createShop(shopData);
-      }
-
-      if (result.success) {
-        showSnackbar(isEditing ? 'Shop updated successfully!' : 'Shop created successfully!', 'success', 3000);
-        setDialogOpen(false);
-        fetchShopData(); // Refresh the shops list
-      } else {
-        showSnackbar(result.error || 'Failed to save shop', 'error', 3000);
-      }
-    } catch (error) {
-      showSnackbar('An error occurred while saving the shop', 'error', 3000);
-    } finally {
-      setSavingShop(false);
-    }
-  };
-
-  const handleAddService = async () => {
-    if (!newService.name || !newService.price || !newService.duration_minutes) {
-      showSnackbar('Please fill in name, price, and duration', 'error', 3000);
-      return;
-    }
-
-    setSavingService(true);
-    try {
-      const payload = {
-        name: newService.name,
-        description: newService.description,
-        price: parseFloat(newService.price),
-        duration_minutes: parseInt(newService.duration_minutes),
-        image_url: newService.image_url,
-      };
-      if (newService.category_id) {
-        payload.category_id = newService.category_id;
-      }
-      const result = await shopOwnerApi.addService(payload);
-
-      if (result.success) {
-        setServices([...services, result.data]);
-        setShowAddServiceModal(false);
-        setNewService({ category_id: '', name: '', description: '', price: '', duration_minutes: '', image_url: '' });
-        showSnackbar('Service added successfully!', 'success', 3000);
-      } else {
-        showSnackbar(result.error || 'Failed to add service', 'error', 3000);
-      }
-    } catch (err) {
-      showSnackbar(err.message || 'Failed to add service', 'error', 3000);
-    } finally {
-      setSavingService(false);
-    }
-  };
-
-  const handleDeleteService = async (serviceId) => {
-    if (window.confirm('Are you sure you want to delete this service?')) {
-      const result = await shopOwnerApi.deleteService(serviceId);
-      if (result.success) {
-        setServices(services.filter((item) => item.id !== serviceId));
-        showSnackbar('Service deleted', 'success', 2000);
-      } else {
-        showSnackbar(result.error || 'Failed to delete service', 'error', 3000);
-      }
-    }
-  };
-
-  const handleOrderStatusChange = async (orderId, newStatus) => {
-    const result = await shopOwnerApi.updateOrderStatus(orderId, newStatus);
-    if (result.success) {
-      setOrders(orders.map((order) => (order.id === orderId ? { ...order, status: newStatus } : order)));
-      showSnackbar('Order status updated', 'success', 2000);
-    } else {
-      showSnackbar(result.error || 'Failed to update order', 'error', 3000);
-    }
-  };
-
-  const getStatusColor = (status) => {
-    const colors = {
-      PENDING: { bg: '#FEF3C7', text: '#92400E' },
-      CONFIRMED: { bg: '#DBEAFE', text: '#1E40AF' },
-      PREPARING: { bg: '#FED7AA', text: '#9B2C1D' },
-      READY: { bg: '#DCFCE7', text: '#166534' },
-      DELIVERED: { bg: '#CFFAFE', text: '#0E7490' },
-      CANCELLED: { bg: '#FEE2E2', text: '#991B1B' },
-    };
-    return colors[status] || colors.PENDING;
-  };
-
-  const isMobile = windowWidth < 768;
-  const activeOrders = orders.filter(o => !['DELIVERED', 'CANCELLED'].includes(o.status)).length;
-
-  if (loading) {
-    return (
-      <div style={{ 
-        textAlign: 'center', 
-        padding: '2rem', 
-        minHeight: '80vh', 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'center',
-        background: 'linear-gradient(145deg, #f8fafc 0%, #f1f5f9 100%)',
-      }}>
-        <div>
-          <div style={{ 
-            fontSize: '18px', 
-            color: '#667eea', 
-            marginBottom: '1rem',
-            fontWeight: '500',
-          }}>Loading your dashboard...</div>
-          <div style={{ 
-            width: '50px', 
-            height: '50px', 
-            border: '4px solid #e2e8f0', 
-            borderTop: '4px solid #667eea', 
-            borderRadius: '50%', 
-            animation: 'spin 1s linear infinite', 
-            margin: '0 auto' 
-          }} />
-        </div>
-      </div>
+  const fetchAppointmentDetails = async (appointmentsList) => {
+    setLoading(true);
+    const enrichedAppointments = await Promise.all(
+      appointmentsList.map(async (appointment) => {
+        try {
+          const serviceResult = await customerApi.getService(appointment.service_id);
+          const slotResult = await customerApi.getSlot(appointment.slot_id);
+          
+          return {
+            ...appointment,
+            service: serviceResult.success ? serviceResult.data : null,
+            slot: slotResult.success ? slotResult.data : null,
+            shop_id: slotResult.success ? slotResult.data.shop_id : null
+          };
+        } catch (error) {
+          return appointment;
+        }
+      })
     );
-  }
+    setAppointments(enrichedAppointments);
+    setLoading(false);
+  };
+
+  const handleCancelAppointment = async (appointmentId) => {
+    if (!window.confirm('Are you sure you want to cancel this appointment?')) {
+      return;
+    }
+    
+    setCancellingId(appointmentId);
+    const result = await customerApi.cancelAppointment(appointmentId);
+    
+    if (result.success) {
+      showSnackbar('Appointment cancelled successfully', 'success', 3000);
+      if (onRefresh) onRefresh();
+      fetchAppointments();
+    } else {
+      showSnackbar(result.error || 'Failed to cancel appointment', 'error', 3000);
+    }
+    setCancellingId(null);
+  };
+
+  const handleViewDetails = (appointment) => {
+    setSelectedAppointment(appointment);
+    setShowDetails(true);
+  };
+
+  if (!open) return null;
 
   return (
-    <div style={{
-      minHeight: "100vh",
-      background: "linear-gradient(145deg, #f8fafc 0%, #f1f5f9 100%)",
-      fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-      padding: "20px",
-    }}>
-      <div style={{ maxWidth: "1400px", margin: "0 auto" }}>
-        {/* Header */}
-        <Box sx={{ mb: 4 }}>
-          <Typography variant="h4" sx={{ fontWeight: 700, color: '#1e293b', mb: 1 }}>
-            Welcome back, {user?.name?.split(' ')[0] || 'Shop Owner'}! 👋
-          </Typography>
-          <Typography variant="body1" color="text.secondary">
-            Manage your shops and services
-          </Typography>
-        </Box>
-
-        {/* Create Shop Button */}
-        <Box sx={{ mb: 3 }}>
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={handleCreateShop}
-            sx={{
-              background: 'linear-gradient(135deg, #667eea, #764ba2)',
-              '&:hover': { background: 'linear-gradient(135deg, #5a6fd8, #6a4190)' },
-              borderRadius: '10px',
-              textTransform: 'none',
-              fontWeight: 600,
-            }}
-          >
-            Create New Shop
-          </Button>
-        </Box>
-
-        {shops.length === 0 ? (
-          <Paper sx={{ 
-            p: 6, 
-            textAlign: 'center', 
-            borderRadius: '20px',
-            background: 'white',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.05)'
-          }}>
-            <StoreIcon sx={{ fontSize: 64, color: '#cbd5e1', mb: 2 }} />
-            <Typography variant="h6" sx={{ color: '#1e293b', mb: 1, fontWeight: 600 }}>
-              No shops found
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-              Create your first shop to get started
-            </Typography>
-          </Paper>
-        ) : (
-          <Grid container spacing={3}>
-            {/* Shops List - Left Side */}
-            <Grid item xs={12} md={4}>
-              <Paper sx={{ 
-                p: 2, 
-                borderRadius: '16px',
-                background: 'white',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
-                maxHeight: '600px',
-                overflowY: 'auto'
-              }}>
-                <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: '#1e293b' }}>
-                  Your Shops ({shops.length})
-                </Typography>
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                  {shops.map((shop) => (
-                    <Card
-                      key={shop.id}
-                      onClick={() => handleShopSelect(shop)}
-                      sx={{
-                        cursor: 'pointer',
-                        borderRadius: '12px',
-                        border: selectedShop?.id === shop.id ? '2px solid #667eea' : '1px solid #e2e8f0',
-                        background: selectedShop?.id === shop.id ? '#667eea05' : 'white',
-                        transition: 'all 0.2s ease',
-                        '&:hover': {
-                          transform: 'translateY(-2px)',
-                          boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                        }
-                      }}
-                    >
-                      <CardContent sx={{ p: 2 }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                          <Avatar
-                            src={shop.image_url}
-                            sx={{ width: 50, height: 50, bgcolor: '#667eea20' }}
-                          >
-                            <StoreIcon sx={{ color: '#667eea' }} />
-                          </Avatar>
-                          <Box sx={{ flex: 1, minWidth: 0 }}>
-                            <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#1e293b' }}>
-                              {shop.name}
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                              {shop.address}
-                            </Typography>
-                            <Chip
-                              label={shop.is_open ? 'Open' : 'Closed'}
-                              size="small"
-                              sx={{
-                                mt: 0.5,
-                                backgroundColor: shop.is_open ? '#10b98120' : '#ef444420',
-                                color: shop.is_open ? '#10b981' : '#ef4444',
-                                fontSize: '10px',
-                                height: '20px'
-                              }}
-                            />
-                          </Box>
-                        </Box>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </Box>
-              </Paper>
-            </Grid>
-
-            {/* Shop Details - Right Side */}
-            <Grid item xs={12} md={8}>
-              {selectedShop ? (
-                <Paper sx={{ 
-                  p: 3, 
-                  borderRadius: '16px',
-                  background: 'white',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
-                }}>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 3 }}>
-                    <Typography variant="h5" sx={{ fontWeight: 700, color: '#1e293b' }}>
-                      {selectedShop.name}
-                    </Typography>
-                    <Button
-                      variant="outlined"
-                      startIcon={<EditIcon />}
-                      onClick={() => handleEditShop(selectedShop)}
-                      sx={{
-                        borderRadius: '10px',
-                        textTransform: 'none',
-                        borderColor: '#667eea',
-                        color: '#667eea',
-                        '&:hover': {
-                          borderColor: '#5a6fd8',
-                          backgroundColor: '#667eea10',
-                        }
-                      }}
-                    >
-                      Edit Shop
-                    </Button>
-                  </Box>
-
-                  <Grid container spacing={3}>
-                    {/* Shop Image */}
-                    <Grid item xs={12} md={6}>
-                      <Box sx={{ 
-                        height: 250, 
-                        borderRadius: '12px', 
-                        overflow: 'hidden',
-                        background: 'linear-gradient(135deg, #667eea, #764ba2)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}>
-                        {selectedShop.image_url ? (
-                          <img
-                            src={selectedShop.image_url}
-                            alt={selectedShop.name}
-                            style={{
-                              width: '100%',
-                              height: '100%',
-                              objectFit: 'cover'
-                            }}
-                          />
-                        ) : (
-                          <StoreIcon sx={{ fontSize: 80, color: 'white' }} />
-                        )}
-                      </Box>
-                    </Grid>
-
-                    {/* Shop Details */}
-                    <Grid item xs={12} md={6}>
-                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                        {/* About */}
-                        <Box>
-                          <Typography variant="h6" sx={{ fontWeight: 600, color: '#1e293b', mb: 1 }}>
-                            About
-                          </Typography>
-                          <Typography variant="body2" color="text.secondary">
-                            {selectedShop.description || 'No description provided'}
-                          </Typography>
-                        </Box>
-
-                        {/* Contact Info */}
-                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <LocationOnIcon sx={{ fontSize: 18, color: '#64748b' }} />
-                            <Typography variant="body2" color="text.primary">
-                              {selectedShop.address || 'Address not provided'}
-                            </Typography>
-                          </Box>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <PhoneIcon sx={{ fontSize: 18, color: '#64748b' }} />
-                            <Typography variant="body2" color="text.primary">
-                              {selectedShop.phone || 'Phone not provided'}
-                            </Typography>
-                          </Box>
-                        </Box>
-
-                        {/* Working Hours */}
-                        <Box>
-                          <Typography variant="h6" sx={{ fontWeight: 600, color: '#1e293b', mb: 1 }}>
-                            Working Hours
-                          </Typography>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <AccessTimeIcon sx={{ fontSize: 18, color: '#64748b' }} />
-                            <Typography variant="body2" color="text.primary">
-                              {selectedShop.working_hours || 'Not specified'}
-                            </Typography>
-                          </Box>
-                        </Box>
-
-                        {/* Working Days */}
-                        <Box>
-                          <Typography variant="h6" sx={{ fontWeight: 600, color: '#1e293b', mb: 1 }}>
-                            Working Days
-                          </Typography>
-                          <Typography variant="body2" color="text.primary">
-                            {selectedShop.working_days || 'Not specified'}
-                          </Typography>
-                        </Box>
-
-                        {/* Status */}
-                        <Box sx={{ mt: 1 }}>
-                          <Chip
-                            label={selectedShop.is_open ? 'Currently Open' : 'Currently Closed'}
-                            sx={{
-                              backgroundColor: selectedShop.is_open ? '#10b98120' : '#ef444420',
-                              color: selectedShop.is_open ? '#10b981' : '#ef4444',
-                              fontWeight: 600
-                            }}
-                          />
-                        </Box>
-                      </Box>
-                    </Grid>
-                  </Grid>
-
-                  {/* Tabs */}
-                  <Box sx={{ mt: 4, borderBottom: '1px solid #e2e8f0' }}>
-                    <Box sx={{ display: 'flex', gap: 2 }}>
-                      <Button
-                        onClick={() => setActiveTab('services')}
-                        sx={{
-                          color: activeTab === 'services' ? '#667eea' : '#64748b',
-                          fontWeight: activeTab === 'services' ? 600 : 400,
-                          borderBottom: activeTab === 'services' ? '2px solid #667eea' : 'none',
-                          borderRadius: 0,
-                          '&:hover': { backgroundColor: 'transparent' }
-                        }}
-                      >
-                        Services ({services.length})
-                      </Button>
-                      <Button
-                        onClick={() => setActiveTab('orders')}
-                        sx={{
-                          color: activeTab === 'orders' ? '#667eea' : '#64748b',
-                          fontWeight: activeTab === 'orders' ? 600 : 400,
-                          borderBottom: activeTab === 'orders' ? '2px solid #667eea' : 'none',
-                          borderRadius: 0,
-                          '&:hover': { backgroundColor: 'transparent' }
-                        }}
-                      >
-                        Orders ({orders.length})
-                      </Button>
-                    </Box>
-                  </Box>
-
-                  {/* Services Tab */}
-                  {activeTab === 'services' && (
-                    <Box sx={{ mt: 3 }}>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                        <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                          Services
-                        </Typography>
-                        <Button
-                          variant="contained"
-                          startIcon={<AddIcon />}
-                          onClick={() => setShowAddServiceModal(true)}
-                          sx={{
-                            background: 'linear-gradient(135deg, #667eea, #764ba2)',
-                            '&:hover': { background: 'linear-gradient(135deg, #5a6fd8, #6a4190)' },
-                            borderRadius: '8px',
-                            textTransform: 'none',
-                            fontSize: '13px'
-                          }}
-                        >
-                          Add Service
-                        </Button>
-                      </Box>
-
-                      {services.length === 0 ? (
-                        <Paper sx={{ p: 4, textAlign: 'center', borderRadius: '12px', bgcolor: '#f8fafc' }}>
-                          <Typography variant="body2" color="text.secondary">
-                            No services added yet. Click "Add Service" to get started.
-                          </Typography>
-                        </Paper>
-                      ) : (
-                        <Grid container spacing={2}>
-                          {services.map((service) => (
-                            <Grid item xs={12} sm={6} key={service.id}>
-                              <Card sx={{ borderRadius: '12px', '&:hover': { boxShadow: '0 4px 12px rgba(0,0,0,0.1)' } }}>
-                                {service.image_url && (
-                                  <CardMedia
-                                    component="img"
-                                    height="140"
-                                    image={service.image_url}
-                                    alt={service.name}
-                                  />
-                                )}
-                                <CardContent>
-                                  <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>
-                                    {service.name}
-                                  </Typography>
-                                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                                    {service.description || 'No description'}
-                                  </Typography>
-                                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <Typography variant="h6" sx={{ color: '#667eea', fontWeight: 600 }}>
-                                      ${service.price?.toFixed(2)}
-                                    </Typography>
-                                    <Typography variant="caption" color="text.secondary">
-                                      {service.duration_minutes} min
-                                    </Typography>
-                                  </Box>
-                                  <Button
-                                    size="small"
-                                    color="error"
-                                    onClick={() => handleDeleteService(service.id)}
-                                    sx={{ mt: 2 }}
-                                  >
-                                    Delete
-                                  </Button>
-                                </CardContent>
-                              </Card>
-                            </Grid>
-                          ))}
-                        </Grid>
-                      )}
-                    </Box>
-                  )}
-
-                  {/* Orders Tab */}
-                  {activeTab === 'orders' && (
-                    <Box sx={{ mt: 3 }}>
-                      <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
-                        Incoming Orders
-                      </Typography>
-
-                      {orders.length === 0 ? (
-                        <Paper sx={{ p: 4, textAlign: 'center', borderRadius: '12px', bgcolor: '#f8fafc' }}>
-                          <Typography variant="body2" color="text.secondary">
-                            No orders yet
-                          </Typography>
-                        </Paper>
-                      ) : (
-                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                          {orders.map((order) => {
-                            const statusStyle = getStatusColor(order.status);
-                            return (
-                              <Paper key={order.id} sx={{ p: 2, borderRadius: '12px' }}>
-                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-                                  <Box>
-                                    <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-                                      Order #{order.id}
-                                    </Typography>
-                                    <Typography variant="caption" color="text.secondary">
-                                      {order.customer_name || 'Anonymous'}
-                                    </Typography>
-                                  </Box>
-                                  <Chip
-                                    label={order.status}
-                                    sx={{
-                                      backgroundColor: statusStyle.bg,
-                                      color: statusStyle.text,
-                                      fontWeight: 600
-                                    }}
-                                  />
-                                </Box>
-                                
-                                <Typography variant="body2" sx={{ mb: 2 }}>
-                                  Total: ${order.total_amount?.toFixed(2) || '0.00'}
-                                </Typography>
-
-                                <select
-                                  value={order.status}
-                                  onChange={(e) => handleOrderStatusChange(order.id, e.target.value)}
-                                  style={{
-                                    width: '100%',
-                                    padding: '8px',
-                                    borderRadius: '8px',
-                                    border: '1px solid #e2e8f0',
-                                    fontSize: '13px',
-                                    cursor: 'pointer'
-                                  }}
-                                >
-                                  <option value="PENDING">Pending</option>
-                                  <option value="CONFIRMED">Confirmed</option>
-                                  <option value="PREPARING">Preparing</option>
-                                  <option value="READY">Ready</option>
-                                  <option value="DELIVERED">Delivered</option>
-                                  <option value="CANCELLED">Cancelled</option>
-                                </select>
-                              </Paper>
-                            );
-                          })}
-                        </Box>
-                      )}
-                    </Box>
-                  )}
-                </Paper>
-              ) : (
-                <Paper sx={{ 
-                  p: 6, 
-                  textAlign: 'center', 
-                  borderRadius: '16px',
-                  background: 'white',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
-                }}>
-                  <StoreIcon sx={{ fontSize: 64, color: '#cbd5e1', mb: 2 }} />
-                  <Typography variant="h6" sx={{ color: '#1e293b', mb: 1, fontWeight: 600 }}>
-                    Select a shop to view details
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Click on a shop from the list to see its details and manage services
-                  </Typography>
-                </Paper>
-              )}
-            </Grid>
-          </Grid>
-        )}
-      </div>
-
-      {/* Shop Form Dialog */}
-      <Dialog 
-        open={dialogOpen} 
-        onClose={() => setDialogOpen(false)}
-        maxWidth="md"
-        fullWidth
-        PaperProps={{
-          sx: {
-            borderRadius: '20px',
-            maxHeight: '90vh',
-          }
-        }}
-      >
-        <Box sx={{ 
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-          color: 'white',
-          padding: '20px 24px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-        }}>
-          <Typography variant="h5" sx={{ fontWeight: 700 }}>
-            {isEditing ? 'Edit Shop' : 'Create New Shop'}
-          </Typography>
-          <IconButton 
-            onClick={() => setDialogOpen(false)} 
-            sx={{ color: 'white', '&:hover': { backgroundColor: 'rgba(255,255,255,0.1)' } }}
-          >
-            <CloseIcon />
-          </IconButton>
-        </Box>
-
-        <DialogContent sx={{ p: 3 }}>
-          <Grid container spacing={3}>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                label="Shop Name"
-                value={shopForm.name}
-                onChange={(e) => handleFormChange('name', e.target.value)}
-                required
-                sx={{ mb: 2 }}
-              />
-              <TextField
-                fullWidth
-                label="Phone"
-                value={shopForm.phone}
-                onChange={(e) => handleFormChange('phone', e.target.value)}
-                sx={{ mb: 2 }}
-              />
-              <TextField
-                fullWidth
-                label="Address"
-                value={shopForm.address}
-                onChange={(e) => handleFormChange('address', e.target.value)}
-                multiline
-                rows={2}
-                sx={{ mb: 2 }}
-              />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                label="Description"
-                value={shopForm.description}
-                onChange={(e) => handleFormChange('description', e.target.value)}
-                multiline
-                rows={3}
-                sx={{ mb: 2 }}
-              />
-              <TextField
-                fullWidth
-                label="Working Days"
-                value={shopForm.working_days}
-                onChange={(e) => handleFormChange('working_days', e.target.value)}
-                placeholder="e.g., Mon-Fri"
-                sx={{ mb: 2 }}
-              />
-              <TextField
-                fullWidth
-                label="Working Hours"
-                value={shopForm.working_hours}
-                onChange={(e) => handleFormChange('working_hours', e.target.value)}
-                placeholder="e.g., 9:00 AM - 6:00 PM"
-                sx={{ mb: 2 }}
-              />
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={shopForm.is_open}
-                    onChange={(e) => handleFormChange('is_open', e.target.checked)}
-                    color="primary"
-                  />
-                }
-                label="Shop is open"
-              />
-            </Grid>
-            <Grid item xs={12}>
-              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                Shop Image
-              </Typography>
-              <Box
-                onClick={() => fileInputRef.current?.click()}
-                sx={{
-                  border: '2px dashed #e2e8f0',
-                  borderRadius: '12px',
-                  p: 3,
-                  textAlign: 'center',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                  '&:hover': {
-                    borderColor: '#667eea',
-                    bgcolor: '#667eea05',
-                  }
-                }}
-              >
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageChange}
-                  style={{ display: 'none' }}
-                />
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                  Click to upload shop image
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  PNG, JPG up to 5MB
-                </Typography>
-              </Box>
-              {imagePreview && (
-                <Box sx={{ mt: 2, textAlign: 'center' }}>
-                  <img
-                    src={imagePreview}
-                    alt="Preview"
-                    style={{
-                      maxWidth: '200px',
-                      maxHeight: '150px',
-                      borderRadius: '8px',
-                      objectFit: 'cover'
-                    }}
-                  />
-                </Box>
-              )}
-            </Grid>
-          </Grid>
-        </DialogContent>
-
-        <DialogActions sx={{ p: 3, pt: 0 }}>
-          <Button 
-            onClick={() => setDialogOpen(false)}
-            sx={{ borderRadius: '10px', textTransform: 'none' }}
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={handleShopSubmit}
-            variant="contained"
-            disabled={savingShop}
-            sx={{
-              borderRadius: '10px',
-              textTransform: 'none',
-              background: 'linear-gradient(135deg, #667eea, #764ba2)',
-              '&:hover': { background: 'linear-gradient(135deg, #5a6fd8, #6a4190)' },
-            }}
-          >
-            {savingShop ? 'Saving...' : (isEditing ? 'Update Shop' : 'Create Shop')}
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Add Service Modal */}
-      <Dialog 
-        open={showAddServiceModal} 
-        onClose={() => setShowAddServiceModal(false)}
-        maxWidth="sm"
-        fullWidth
-        PaperProps={{
-          sx: {
-            borderRadius: '20px',
-          }
-        }}
-      >
-        <Box sx={{ 
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-          color: 'white',
-          padding: '20px 24px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-        }}>
-          <Typography variant="h5" sx={{ fontWeight: 700 }}>
-            Add Service
-          </Typography>
-          <IconButton 
-            onClick={() => setShowAddServiceModal(false)} 
-            sx={{ color: 'white', '&:hover': { backgroundColor: 'rgba(255,255,255,0.1)' } }}
-          >
-            <CloseIcon />
-          </IconButton>
-        </Box>
-
-        <DialogContent sx={{ p: 3 }}>
-          <Grid container spacing={2}>
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="Service Name"
-                value={newService.name}
-                onChange={(e) => setNewService({ ...newService, name: e.target.value })}
-                required
-              />
-            </Grid>
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="Description"
-                value={newService.description}
-                onChange={(e) => setNewService({ ...newService, description: e.target.value })}
-                multiline
-                rows={3}
-              />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                label="Price"
-                type="number"
-                value={newService.price}
-                onChange={(e) => setNewService({ ...newService, price: e.target.value })}
-                required
-                InputProps={{ startAdornment: '$' }}
-              />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                label="Duration (minutes)"
-                type="number"
-                value={newService.duration_minutes}
-                onChange={(e) => setNewService({ ...newService, duration_minutes: e.target.value })}
-                required
-              />
-            </Grid>
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="Image URL"
-                value={newService.image_url}
-                onChange={(e) => setNewService({ ...newService, image_url: e.target.value })}
-                placeholder="https://example.com/image.jpg"
-              />
-            </Grid>
-          </Grid>
-        </DialogContent>
-
-        <DialogActions sx={{ p: 3, pt: 0 }}>
-          <Button 
-            onClick={() => setShowAddServiceModal(false)}
-            sx={{ borderRadius: '10px', textTransform: 'none' }}
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={handleAddService}
-            variant="contained"
-            disabled={savingService}
-            sx={{
-              borderRadius: '10px',
-              textTransform: 'none',
-              background: 'linear-gradient(135deg, #667eea, #764ba2)',
-              '&:hover': { background: 'linear-gradient(135deg, #5a6fd8, #6a4190)' },
-            }}
-          >
-            {savingService ? 'Adding...' : 'Add Service'}
-          </Button>
-        </DialogActions>
-      </Dialog>
-
+    <>
       <style>
         {`
+          @keyframes slideUp {
+            from {
+              opacity: 0;
+              transform: translateY(40px) scale(0.96);
+            }
+            to {
+              opacity: 1;
+              transform: translateY(0) scale(1);
+            }
+          }
+          @keyframes fadeIn {
+            from { opacity: 0; backdrop-filter: blur(0px); }
+            to { opacity: 1; backdrop-filter: blur(8px); }
+          }
           @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
           }
+          @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+          }
+          @keyframes shimmer {
+            0% { background-position: -1000px 0; }
+            100% { background-position: 1000px 0; }
+          }
+          .appointment-card {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          }
+          .appointment-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 24px -8px rgba(0, 0, 0, 0.15);
+          }
+          .shimmer {
+            background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+            background-size: 1000px 100%;
+            animation: shimmer 2s infinite;
+          }
         `}
       </style>
-    </div>
+
+      {/* Modal Overlay */}
+      <div
+        onClick={onClose}
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.7), rgba(15, 23, 42, 0.8))',
+          backdropFilter: 'blur(8px)',
+          zIndex: 1000,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '1rem',
+          animation: 'fadeIn 0.3s ease',
+        }}
+      >
+        {/* Modal Content */}
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            background: 'linear-gradient(145deg, #ffffff, #f8fafc)',
+            borderRadius: '32px',
+            width: '100%',
+            maxWidth: '900px',
+            maxHeight: '85vh',
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(102, 126, 234, 0.1)',
+            animation: 'slideUp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
+          }}
+        >
+          {/* Header with Gradient */}
+          <div style={{
+            padding: '1.75rem 2rem',
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            position: 'sticky',
+            top: 0,
+            zIndex: 10,
+          }}>
+            <div>
+              <h2 style={{
+                fontSize: '1.75rem',
+                fontWeight: '800',
+                color: 'white',
+                margin: 0,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                textShadow: '0 2px 4px rgba(0,0,0,0.1)',
+              }}>
+                <span style={{ fontSize: '28px' }}>📋</span>
+                My Appointments
+              </h2>
+              <p style={{
+                fontSize: '0.875rem',
+                color: 'rgba(255,255,255,0.9)',
+                margin: '6px 0 0 0',
+              }}>
+                {appointments.length} appointment{appointments.length !== 1 ? 's' : ''} found
+              </p>
+            </div>
+            <button
+              onClick={onClose}
+              style={{
+                background: 'rgba(255,255,255,0.2)',
+                backdropFilter: 'blur(10px)',
+                border: 'none',
+                cursor: 'pointer',
+                padding: '10px',
+                borderRadius: '12px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'white',
+                transition: 'all 0.2s',
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.3)'}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
+            >
+              <CloseIcon />
+            </button>
+          </div>
+
+          {/* Content */}
+          <div style={{
+            padding: '1.75rem 2rem',
+            overflowY: 'auto',
+            flex: 1,
+          }}>
+            {loading ? (
+              <div style={{ textAlign: 'center', padding: '4rem 2rem' }}>
+                <div style={{
+                  width: '60px',
+                  height: '60px',
+                  border: '4px solid #e2e8f0',
+                  borderTop: '4px solid #667eea',
+                  borderRadius: '50%',
+                  animation: 'spin 1s linear infinite',
+                  margin: '0 auto 1.5rem',
+                }} />
+                <p style={{ color: '#64748b', fontSize: '15px' }}>Loading your appointments...</p>
+              </div>
+            ) : appointments.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '4rem 2rem' }}>
+                <div style={{
+                  fontSize: '80px',
+                  marginBottom: '1.5rem',
+                  animation: 'pulse 2s ease-in-out infinite',
+                }}>📅</div>
+                <h3 style={{ fontSize: '1.5rem', fontWeight: '700', color: '#1e293b', marginBottom: '0.75rem' }}>
+                  No Appointments Yet
+                </h3>
+                <p style={{ color: '#64748b', marginBottom: '2rem', fontSize: '14px' }}>
+                  You haven't booked any appointments yet. Browse shops to get started!
+                </p>
+                <button
+                  onClick={onClose}
+                  style={{
+                    background: 'linear-gradient(135deg, #667eea, #764ba2)',
+                    color: 'white',
+                    border: 'none',
+                    padding: '12px 28px',
+                    borderRadius: '12px',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    transition: 'transform 0.2s',
+                    boxShadow: '0 4px 12px rgba(102, 126, 234, 0.3)',
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
+                  onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+                >
+                  Browse Shops →
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                {appointments.map((appointment, idx) => (
+                  <div
+                    key={appointment.id}
+                    className="appointment-card"
+                    style={{
+                      background: 'white',
+                      borderRadius: '20px',
+                      padding: '1.5rem',
+                      transition: 'all 0.3s ease',
+                      border: '1px solid #e2e8f0',
+                      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
+                      animation: `slideUp 0.4s ease ${idx * 0.05}s`,
+                    }}
+                  >
+                    {/* Header */}
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'flex-start',
+                      flexWrap: 'wrap',
+                      gap: '12px',
+                      marginBottom: '16px',
+                    }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          flexWrap: 'wrap',
+                          marginBottom: '6px',
+                        }}>
+                          <h3 style={{
+                            fontSize: '1.125rem',
+                            fontWeight: '700',
+                            color: '#1e293b',
+                            margin: 0,
+                          }}>
+                            {appointment.service?.name || `Booking #${appointment.id.slice(0, 8)}`}
+                          </h3>
+                          {getStatusBadge(appointment.status)}
+                        </div>
+                        <p style={{
+                          fontSize: '0.75rem',
+                          color: '#94a3b8',
+                          margin: '4px 0 0 0',
+                        }}>
+                          Booked on {formatDateTime(appointment.created_at)}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Details Grid */}
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                      gap: '12px',
+                      marginTop: '16px',
+                      marginBottom: '20px',
+                      padding: '12px 0',
+                      borderTop: '1px solid #f1f5f9',
+                      borderBottom: '1px solid #f1f5f9',
+                    }}>
+                      {appointment.date && (
+                        <div style={{ 
+                          fontSize: '0.875rem', 
+                          color: '#475569',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px'
+                        }}>
+                          <CalendarIcon />
+                          <span><strong>Date:</strong> {formatDate(appointment.date)}</span>
+                        </div>
+                      )}
+                      {appointment.start_time && (
+                        <div style={{ 
+                          fontSize: '0.875rem', 
+                          color: '#475569',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px'
+                        }}>
+                          <ClockIcon />
+                          <span><strong>Time:</strong> {appointment.start_time.split('.')[0]} - {appointment.end_time?.split('.')[0]}</span>
+                        </div>
+                      )}
+                      {appointment.service?.price && (
+                        <div style={{ fontSize: '0.875rem', color: '#475569' }}>
+                          <strong>💰 Price:</strong> <span style={{ color: '#667eea', fontWeight: '700' }}>₹{appointment.service.price}</span>
+                        </div>
+                      )}
+                      {appointment.service?.duration_minutes && (
+                        <div style={{ fontSize: '0.875rem', color: '#475569' }}>
+                          <strong>⏱️ Duration:</strong> {appointment.service.duration_minutes} mins
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Notes */}
+                    {appointment.notes && (
+                      <div style={{
+                        fontSize: '0.875rem',
+                        color: '#64748b',
+                        background: '#f8fafc',
+                        padding: '10px 14px',
+                        borderRadius: '12px',
+                        marginBottom: '16px',
+                        borderLeft: '3px solid #667eea',
+                      }}>
+                        📝 {appointment.notes}
+                      </div>
+                    )}
+
+                    {/* Action Buttons */}
+                    <div style={{
+                      display: 'flex',
+                      gap: '12px',
+                    }}>
+                      <button
+                        onClick={() => handleViewDetails(appointment)}
+                        style={{
+                          flex: 1,
+                          background: 'linear-gradient(135deg, #667eea, #764ba2)',
+                          color: 'white',
+                          border: 'none',
+                          padding: '10px 16px',
+                          borderRadius: '12px',
+                          fontSize: '0.875rem',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s',
+                          boxShadow: '0 2px 6px rgba(102, 126, 234, 0.3)',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.transform = 'translateY(-2px)';
+                          e.currentTarget.style.boxShadow = '0 4px 12px rgba(102, 126, 234, 0.4)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.transform = 'translateY(0)';
+                          e.currentTarget.style.boxShadow = '0 2px 6px rgba(102, 126, 234, 0.3)';
+                        }}
+                      >
+                        View Details
+                      </button>
+                      
+                      {(appointment.status === 'PENDING' || appointment.status === 'pending') && (
+                        <button
+                          onClick={() => handleCancelAppointment(appointment.id)}
+                          disabled={cancellingId === appointment.id}
+                          style={{
+                            flex: 1,
+                            background: 'white',
+                            border: '1.5px solid #ef4444',
+                            color: '#ef4444',
+                            padding: '10px 16px',
+                            borderRadius: '12px',
+                            fontSize: '0.875rem',
+                            fontWeight: '600',
+                            cursor: cancellingId === appointment.id ? 'not-allowed' : 'pointer',
+                            transition: 'all 0.2s',
+                            opacity: cancellingId === appointment.id ? 0.6 : 1,
+                          }}
+                          onMouseEnter={(e) => {
+                            if (cancellingId !== appointment.id) {
+                              e.currentTarget.style.background = '#fef2f2';
+                              e.currentTarget.style.transform = 'translateY(-2px)';
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = 'white';
+                            e.currentTarget.style.transform = 'translateY(0)';
+                          }}
+                        >
+                          {cancellingId === appointment.id ? 'Cancelling...' : 'Cancel Appointment'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Details Modal */}
+      {showDetails && selectedAppointment && (
+        <div
+          onClick={() => setShowDetails(false)}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.85)',
+            backdropFilter: 'blur(12px)',
+            zIndex: 1100,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1rem',
+            animation: 'fadeIn 0.2s ease',
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: 'white',
+              borderRadius: '28px',
+              maxWidth: '500px',
+              width: '100%',
+              padding: '2rem',
+              animation: 'slideUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+            }}
+          >
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '1.5rem',
+            }}>
+              <h3 style={{ 
+                fontSize: '1.5rem', 
+                fontWeight: '800', 
+                background: 'linear-gradient(135deg, #667eea, #764ba2)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                margin: 0 
+              }}>
+                Appointment Details
+              </h3>
+              <button
+                onClick={() => setShowDetails(false)}
+                style={{
+                  background: '#f1f5f9',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: '8px',
+                  borderRadius: '12px',
+                  transition: 'all 0.2s',
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = '#e2e8f0'}
+                onMouseLeave={(e) => e.currentTarget.style.background = '#f1f5f9'}
+              >
+                <CloseIcon />
+              </button>
+            </div>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div style={{
+                background: '#f8fafc',
+                padding: '12px',
+                borderRadius: '12px',
+              }}>
+                <strong style={{ color: '#64748b', fontSize: '12px', textTransform: 'uppercase' }}>Booking ID</strong>
+                <p style={{ color: '#1e293b', margin: '4px 0 0 0', fontFamily: 'monospace', fontSize: '13px' }}>{selectedAppointment.id}</p>
+              </div>
+              
+              <div style={{
+                background: '#f8fafc',
+                padding: '12px',
+                borderRadius: '12px',
+              }}>
+                <strong style={{ color: '#64748b', fontSize: '12px', textTransform: 'uppercase' }}>Status</strong>
+                <div style={{ marginTop: '6px' }}>{getStatusBadge(selectedAppointment.status)}</div>
+              </div>
+              
+              <div style={{
+                background: '#f8fafc',
+                padding: '12px',
+                borderRadius: '12px',
+              }}>
+                <strong style={{ color: '#64748b', fontSize: '12px', textTransform: 'uppercase' }}>Created At</strong>
+                <p style={{ color: '#1e293b', margin: '4px 0 0 0' }}>{formatDateTime(selectedAppointment.created_at)}</p>
+              </div>
+              
+              {selectedAppointment.notes && (
+                <div style={{
+                  background: '#f8fafc',
+                  padding: '12px',
+                  borderRadius: '12px',
+                }}>
+                  <strong style={{ color: '#64748b', fontSize: '12px', textTransform: 'uppercase' }}>Notes</strong>
+                  <p style={{ color: '#1e293b', margin: '4px 0 0 0' }}>{selectedAppointment.notes}</p>
+                </div>
+              )}
+            </div>
+            
+            <button
+              onClick={() => setShowDetails(false)}
+              style={{
+                width: '100%',
+                marginTop: '2rem',
+                background: 'linear-gradient(135deg, #667eea, #764ba2)',
+                color: 'white',
+                border: 'none',
+                padding: '12px',
+                borderRadius: '14px',
+                fontSize: '15px',
+                fontWeight: '700',
+                cursor: 'pointer',
+                transition: 'transform 0.2s',
+                boxShadow: '0 4px 12px rgba(102, 126, 234, 0.3)',
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
+              onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
-export default ShopOwnerDashboard;
+export default AppointmentsDialog;

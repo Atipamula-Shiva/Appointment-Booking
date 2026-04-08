@@ -22,6 +22,7 @@ class ShopOwnerApiService {
   }
 
   async createShop(shopData) {
+    console.log("Creating shop with data:", shopData);
     try {
       const response = await api.post('/shop', shopData);
       return { success: true, data: response.data };
@@ -32,7 +33,7 @@ class ShopOwnerApiService {
 
   async updateShop(shopId, shopData) {
     try {
-      const response = await api.patch(`/shop/${shopId}`, shopData);
+      const response = await api.patch(`/shop/shop_update/${shopId}`, shopData);
       return { success: true, data: response.data };
     } catch (error) {
       return { success: false, error: error.response?.data?.detail || error.response?.data?.message || 'Failed to update shop' };
@@ -169,6 +170,26 @@ class ShopOwnerApiService {
       return { success: false, error: error.response?.data?.detail || error.response?.data?.message || 'Failed to update order status' };
     }
   }
+
+  // Add this method to the ShopOwnerApiService class in shopOwnerApi.js
+
+async getShopBookings() {
+  try {
+    const response = await api.get('/shop/bookings');
+    return { success: true, data: response.data };
+  } catch (error) {
+    return { success: false, error: error.response?.data?.detail || error.response?.data?.message || 'Failed to fetch bookings' };
+  }
+}
+
+async updateBookingStatus(bookingId, status) {
+  try {
+    const response = await api.patch(`/shop/bookings/${bookingId}`, { status });
+    return { success: true, data: response.data };
+  } catch (error) {
+    return { success: false, error: error.response?.data?.detail || error.response?.data?.message || 'Failed to update booking status' };
+  }
+}
 }
 
 export default new ShopOwnerApiService();
