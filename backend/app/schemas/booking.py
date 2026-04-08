@@ -83,6 +83,7 @@ class SlotResponse(BaseModel):
 
 
 class BookingCreate(BaseModel):
+    shop_id: UUID
     slot_id: UUID
     service_id: UUID
     date: str

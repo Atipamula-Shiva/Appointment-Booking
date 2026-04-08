@@ -219,6 +219,7 @@ def view_shop_menu(shop_id: UUID, db: Session = Depends(get_db), _: User = Depen
 
 @router.get("/services/{service_id}/slots", summary="Get available slots for a service")
 def get_slots(
+    shop_id: UUID,
     service_id: UUID,
     date: str = Query(..., description="Date in YYYY-MM-DD format"),
     db: Session = Depends(get_db),
@@ -229,9 +230,15 @@ def get_slots(
     except ValueError:
         raise HTTPException(status_code=400, detail="Date must be YYYY-MM-DD format")
     
+    # slots = db.query(TimeSlot).filter(
+    #     TimeSlot.service_id == service_id,
+    #     TimeSlot.date == date,
+    # ).all()
     slots = db.query(TimeSlot).filter(
         TimeSlot.service_id == service_id,
-        TimeSlot.date == date,
+        TimeSlot.shop_id == shop_id,
+        TimeSlot.date == parsed_date,
+        TimeSlot.booked < TimeSlot.capacity
     ).all()
     return [
         {
@@ -264,6 +271,7 @@ def create_booking(
     booking = Booking(
         customer_id=current_user.id,
         slot_id=slot.id,
+        shop_id=payload.shop_id,
         service_id=slot.service_id,
         notes=payload.notes,
         status=BookingStatus.PENDING
