@@ -1081,6 +1081,7 @@ function ShopOwnerDashboard() {
       )}
 
       {/* ── Edit Service Modal ── */}
+      
       {showEditServiceModal && editingService && (
         <div className="modal-overlay" onClick={() => setShowEditServiceModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
