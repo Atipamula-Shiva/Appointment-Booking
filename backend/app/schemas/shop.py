@@ -52,7 +52,7 @@ class ShopCreate(BaseModel):
     longitude: float | None = None
     open_time: str | None = None    # "09:00"
     close_time: str | None = None   # "16:00"
-
+    is_open: bool | None = None
 
 class ShopUpdate(BaseModel):
     name: str | None = None
