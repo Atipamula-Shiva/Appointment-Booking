@@ -85,7 +85,11 @@ class SlotResponse(BaseModel):
 class BookingCreate(BaseModel):
     slot_id: UUID
     service_id: UUID
+    date: str
+    start_time: str
+    end_time: str
     notes: Optional[str] = None
+    
 
 
 
