@@ -151,7 +151,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.dependencies import get_current_user, require_shop_owner
-from app.models import MenuItem, Shop, User, Service, TimeSlot, Booking, BookingStatus, Category
+from app.models import MenuItem, Order, Shop, User, Service, TimeSlot, Booking, BookingStatus, Category
 from app.schemas.shop import (
     MenuItemCreate, MenuItemResponse, MenuItemUpdate,
     ShopCreate, ShopResponse, ShopUpdate,
@@ -567,3 +567,65 @@ def update_booking(
     db.commit()
     db.refresh(booking)
     return booking
+
+# ── Delete shop ───────────────────────────────────────────
+
+@router.delete("", status_code=204, summary="Delete my shop")
+def delete_shop(
+    current_user: User = Depends(require_shop_owner),
+    db: Session = Depends(get_db),
+):
+    shop = current_user.shop
+    if not shop:
+        raise HTTPException(status_code=404, detail="Shop not found")
+
+    # Prevent deletion if there are active/pending orders
+    active_orders = db.query(Order).filter(
+        Order.shop_id == shop.id,
+        Order.status.in_(["pending", "confirmed", "preparing"])
+    ).count()
+    if active_orders > 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot delete shop with {active_orders} active orders. Complete or cancel them first."
+        )
+
+    db.delete(shop)
+    db.commit()
+
+
+# ── Delete service ────────────────────────────────────────
+
+@router.delete("/services/{service_id}", status_code=204, summary="Delete service")
+def delete_service(
+    service_id: UUID,
+    current_user: User = Depends(require_shop_owner),
+    db: Session = Depends(get_db),
+):
+    shop = current_user.shop
+    if not shop:
+        raise HTTPException(status_code=404, detail="Shop not found")
+
+    service = db.query(Service).filter(
+        Service.id == service_id,
+        Service.shop_id == shop.id
+    ).first()
+    if not service:
+        raise HTTPException(status_code=404, detail="Service not found")
+
+    # Check no active bookings exist for this service
+    active_bookings = db.query(Booking).filter(
+        Booking.service_id == service_id,
+        Booking.status.in_(["pending", "confirmed"])
+    ).count()
+    if active_bookings > 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot delete service with {active_bookings} active bookings. Complete or cancel them first."
+        )
+
+    # Also delete all future slots for this service
+    db.query(TimeSlot).filter(TimeSlot.service_id == service_id).delete()
+
+    db.delete(service)
+    db.commit()
