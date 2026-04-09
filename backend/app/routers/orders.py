@@ -243,6 +243,7 @@ def get_slots(
     return [
         {
             "id": str(s.id),
+            "name": str(s.service.name),
             "date": str(s.date),
             "start_time": str(s.start_time),
             "end_time": str(s.end_time),
