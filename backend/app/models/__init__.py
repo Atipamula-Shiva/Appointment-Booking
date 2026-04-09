@@ -424,6 +424,7 @@ class Booking(Base):
     notes       = Column(Text, nullable=True)
     created_at  = Column(DateTime, server_default=func.now())
     shop_id     = Column(UUID(as_uuid=True), ForeignKey("abc.shops.id"), nullable=True)  # Added shop_id to Booking
+    service_name = Column(String(150), nullable=True)  # Store service name for easy access in responses
     customer = relationship("User")
     slot     = relationship("TimeSlot", back_populates="bookings")
     service  = relationship("Service")

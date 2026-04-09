@@ -150,7 +150,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.dependencies import require_shop_owner
+from app.dependencies import get_current_user, require_shop_owner
 from app.models import MenuItem, Shop, User, Service, TimeSlot, Booking, BookingStatus, Category
 from app.schemas.shop import (
     MenuItemCreate, MenuItemResponse, MenuItemUpdate,
@@ -417,6 +417,7 @@ def create_slot(
     payload: SlotCreate,
     current_user: User = Depends(require_shop_owner),
     db: Session = Depends(get_db),
+     _: User = Depends(get_current_user),
 ):
     shop = current_user.shop
     if not shop:
@@ -442,6 +443,9 @@ def create_slot(
             TimeSlot.service_id == payload.service_id,
             TimeSlot.date == payload.date,
             TimeSlot.shop_id == shop.id,
+            TimeSlot.capacity > 0,
+            TimeSlot.start_time.isnot(None),
+            TimeSlot.end_time.isnot(None),
             TimeSlot.booked > 0
         )
         .first()

@@ -55,6 +55,9 @@ class ServiceResponse(BaseModel):
 from datetime import date as DateType
 
 class SlotCreate(BaseModel):
+    capacity: int
+    start_time: str    # "14:00"
+    end_time: str      # "15:00"
     service_id: UUID
     date: str        # "2026-04-07"
 
@@ -100,6 +103,7 @@ class BookingStatusUpdate(BaseModel):
 
 class BookingResponse(BaseModel):
     id: UUID
+    service_name: str
     customer_id: UUID
     slot_id: UUID
     service_id: UUID
