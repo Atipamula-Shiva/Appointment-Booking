@@ -103,7 +103,7 @@ class BookingStatusUpdate(BaseModel):
 
 class BookingResponse(BaseModel):
     id: UUID
-    service_name: str
+    service_name: Optional[str] = None 
     customer_id: UUID
     slot_id: UUID
     service_id: UUID
