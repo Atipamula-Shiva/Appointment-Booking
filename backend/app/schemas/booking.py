@@ -56,19 +56,11 @@ from datetime import date as DateType
 
 class SlotCreate(BaseModel):
     capacity: int
-    start_time: str    # "14:00"
-    end_time: str      # "15:00"
+    start_time: time    # "14:00"
+    end_time: time      # "15:00"
     service_id: UUID
-    date: str        # "2026-04-07"
-
-    @field_validator("date")
-    @classmethod
-    def check_date(cls, v):
-        try:
-            DateType.fromisoformat(v)
-        except ValueError:
-            raise ValueError("Date must be YYYY-MM-DD format")
-        return v
+    start_date: date
+    end_date: date
 
 
 class SlotResponse(BaseModel):
@@ -81,6 +73,8 @@ class SlotResponse(BaseModel):
     capacity: int
     booked: int
     is_available: bool
+    shop_name: str
+    service_name: str
 
     model_config = {"from_attributes": True}
 

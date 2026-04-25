@@ -397,7 +397,7 @@ class TimeSlot(Base):
     id         = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     shop_id    = Column(UUID(as_uuid=True), ForeignKey("abc.shops.id", ondelete="CASCADE"))
     service_id = Column(UUID(as_uuid=True), ForeignKey("abc.services.id", ondelete="CASCADE"))
-    date       = Column(Date, nullable=False)
+    date = Column(Date, nullable=True)
     start_time = Column(Time, nullable=False)
     end_time   = Column(Time, nullable=False)
     capacity   = Column(Integer, default=1)   # how many bookings allowed in this slot
@@ -410,6 +410,14 @@ class TimeSlot(Base):
     @property
     def is_available(self):
         return self.booked < self.capacity
+    
+    @property
+    def shop_name(self):
+        return self.shop.name if self.shop else None
+
+    @property
+    def service_name(self):
+        return self.service.name if self.service else None
 
 
 class Booking(Base):
